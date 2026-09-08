@@ -1,0 +1,95 @@
+# Local development environment for support-me-system's backend.
+#
+# LOCAL DEV ONLY. Production runs on Kubernetes per the architecture decision — this compose
+# file is not used to deploy anywhere else; it exists purely to let you run the full backend
+# stack (Postgres + Keycloak + the three Spring Boot services) on a laptop.
+
+name: support-me-system
+
+services:
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Consumed by init-multiple-dbs.sh (runs once, only against an empty data volume) to
+      # create one logical database per service on this single shared Postgres instance.
+      POSTGRES_MULTIPLE_DATABASES: "organization_db,initialization_db,keycloak_db"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/docker/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      # Host 8081 -> container 8080, so it doesn't collide with api-gateway's 8080.
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  organization:
+    build:
+      context: ./backend
+      dockerfile: organization/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/organization_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      GRPC_SERVER_PORT: 9091
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
+
+  initialization:
+    build:
+      context: ./backend
+      dockerfile: initialization/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/initialization_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      GRPC_SERVER_PORT: 9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/support-me
+      SPRING_GRPC_CLIENT_CHANNELS_ORGANIZATION_ADDRESS: static://organization:9091
+      SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS: static://initialization:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      - organization
+      - initialization
+
+volumes:
+  postgres_data:

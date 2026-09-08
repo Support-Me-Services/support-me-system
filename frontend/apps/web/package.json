@@ -1,0 +1,37 @@
+{
+  "name": "@support-me/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "npx serve@latest out",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@support-me/api-client": "workspace:*",
+    "@support-me/app": "workspace:*",
+    "@support-me/auth": "workspace:*",
+    "@support-me/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "next": "^15.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-native-web": "^0.21.2",
+    "react-oidc-context": "^3.2.0",
+    "solito": "^4.3.5"
+  },
+  "devDependencies": {
+    "@support-me/config": "workspace:*",
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "autoprefixer": "^10.4.20",
+    "nativewind": "^4.1.23",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3"
+  }
+}

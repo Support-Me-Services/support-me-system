@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# turbo
+.turbo/
+
+# build outputs
+dist/
+.next/
+out/
+
+# expo
+.expo/
+.expo-shared/
+
+# typescript
+*.tsbuildinfo
+
+# generated api client (kept structure via .gitkeep, contents ignored)
+packages/api-client/src/generated/*
+!packages/api-client/src/generated/.gitkeep
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/*
+!.vscode/extensions.json

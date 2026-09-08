@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    // "DOM" is included even though this preset is for React Native code:
+    // in this monorepo, packages are consumed as raw TS source via tsconfig
+    // "paths" (no per-package build step), so e.g. apps/mobile's typecheck
+    // walks straight into packages/auth's use-auth.web.tsx too. Without DOM
+    // here, cross-package typechecking of any workspace file that happens to
+    // reference `window`/`document`/`atob` (even one gated behind a
+    // `.web`/`.native` file suffix meant for a different platform) fails
+    // depending on which package's tsconfig the file gets pulled in under.
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "noEmit": true,
+    "moduleSuffixes": [".native", ""],
+    "types": ["react-native"]
+  }
+}

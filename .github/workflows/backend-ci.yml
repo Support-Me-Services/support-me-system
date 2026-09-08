@@ -1,0 +1,46 @@
+name: backend-ci
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "backend/**"
+  pull_request:
+    paths:
+      - "backend/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      # Caches ~/.m2/repository, keyed on pom.xml contents.
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('backend/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # proto-contracts' generate-sources phase shells out to `buf generate`, which uses buf's
+      # remote BSR plugins (buf.build/protocolbuffers/java, buf.build/grpc/java) - so this is
+      # the only extra tool needed in CI, no local protoc/protoc-gen-grpc-java install.
+      - name: Set up buf CLI
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.72.0"
+
+      # `verify` runs the Testcontainers-backed integration tests in organization/initialization
+      # too - ubuntu-latest GitHub-hosted runners have Docker available out of the box, so
+      # Testcontainers works with no extra setup here.
+      - name: Build and verify (backend reactor)
+        run: mvn -f backend/pom.xml -B verify

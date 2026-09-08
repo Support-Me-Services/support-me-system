@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package common.v1;
+
+option java_package = "com.supportme.proto.common.v1";
+option java_multiple_files = true;
+
+// Minimal shared message types reused across service contracts. Kept intentionally small —
+// add to this only when a type is genuinely shared by 2+ services.
+
+// A generic "not found" style error detail that gRPC status metadata can carry.
+message ErrorDetail {
+  string code = 1;
+  string message = 2;
+}

@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: initialization
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432/initialization_db
+    username: initialization
+    password: initialization
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  # No REST surface on this service - only gRPC + actuator.
+  grpc:
+    server:
+      port: 9092
+      # Explicit keep-alive durations work around a confirmed bug in
+      # spring-grpc-server-spring-boot-autoconfigure:1.0.3 -
+      # DefaultServerFactoryPropertyMapper.customizeKeepAlive() maps these
+      # properties with PropertyMapper.from(...).to(...) but no
+      # .whenNonNull() guard, so if any of them is left at its default
+      # (null) the server throws a NullPointerException in
+      # Duration.toNanos() during ApplicationContext startup. Re-verify
+      # against release notes and drop these once fixed upstream.
+      keep-alive:
+        time: 30m
+        timeout: 20s
+        max-idle: 30m
+        max-age: 2h
+        max-age-grace: 30s
+        permit-time: 5m
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

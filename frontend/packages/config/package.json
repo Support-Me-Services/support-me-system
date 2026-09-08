@@ -1,0 +1,21 @@
+{
+  "name": "@support-me/config",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "index.js",
+  "files": [
+    "eslint-preset.js",
+    "tailwind-preset.js",
+    "tsconfig"
+  ],
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint-config-prettier": "^9.1.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.supportme</groupId>
+  <artifactId>support-me-backend</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>support-me-backend</name>
+  <description>Backend monorepo (Maven multi-module reactor) for the support-me-system microservices.</description>
+
+  <modules>
+    <module>proto-contracts</module>
+    <module>organization</module>
+    <module>initialization</module>
+    <module>api-gateway</module>
+  </modules>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <java.version>25</java.version>
+    <maven.compiler.release>25</maven.compiler.release>
+
+    <!-- CORRECTED after a real, failing test run: Spring Boot 4 is already GA
+         (4.1.1 is the current latest stable minor; 3.5.x is now the
+         previous/maintenance major) - an earlier pass here mistakenly read
+         "4.2.0-M1" being the newest *published* artifact as "4.x isn't GA
+         yet", which was wrong (that's just the next minor's milestone; 4.0.x
+         and 4.1.x are both full GA releases). Pinned to 4.0.8 (latest 4.0.x
+         patch), NOT the newer 4.1.1 minor: spring-grpc-server-spring-boot-
+         autoconfigure:1.0.3 is compiled directly against spring-boot:4.0.2
+         (confirmed via its POM), and using Spring Boot 4.1.1 instead threw
+         `NoClassDefFoundError: PropertyMapper$Source$Adapter` at gRPC server
+         startup - an internal Spring Boot class that changed shape between
+         4.0.x and 4.1.x. Stay on the 4.0.x minor until spring-grpc publishes
+         a release built against 4.1.x. Verify against
+         https://github.com/spring-projects/spring-boot/releases -->
+    <spring-boot.version>4.0.8</spring-boot.version>
+
+    <!-- org.springframework.grpc, confirmed on Maven Central. Pinned to 1.0.3
+         rather than the newer spring-grpc-dependencies 1.1.x line: the split
+         spring-grpc-client-spring-boot-starter / spring-grpc-server-spring-boot-starter
+         artifacts we depend on (see api-gateway / organization / initialization
+         poms) return 404 past 1.0.3 - confirmed by directly probing Maven
+         Central, not just reading the BOM's version list - so importing the
+         1.1.x BOM here would try (and fail) to manage them at a version that
+         doesn't exist. Re-verify at https://github.com/spring-projects/spring-grpc
+         before bumping. -->
+    <spring-grpc.version>1.0.3</spring-grpc.version>
+
+    <!-- Must track exactly what spring-grpc-dependencies:1.0.3 itself imports
+         (io.grpc:grpc-bom:1.77.1). Bumping spring-grpc.version should be paired
+         with re-checking this. -->
+    <grpc.version>1.77.1</grpc.version>
+
+    <!-- NOT pinned to grpc-protobuf:1.77.1's own declared protobuf-java
+         dependency (3.25.8) - confirmed by an actual `mvn compile` that this
+         breaks: proto-contracts' generated *.java (from buf's remote
+         protocolbuffers/java plugin, which tracks a recent protoc with
+         "Editions" support) calls APIs that don't exist in protobuf-java 3.25
+         (com.google.protobuf.RuntimeVersion, GeneratedMessage.isStringEmpty,
+         FileDescriptor.resolveAllFeaturesImmutable(), a newer
+         parseUnknownField(...) overload). protobuf-java is forward-compatible
+         at runtime (older-generated code runs fine on a newer runtime, not the
+         reverse), so pin to the latest release the generator itself needs.
+         Re-verify by running `mvn compile` after any buf/plugin version bump. -->
+    <protobuf.version>4.36.1</protobuf.version>
+
+    <!-- springdoc-openapi 3.x targets Spring Boot 4 (it depends on
+         spring-boot-health / spring-boot-tomcat, Spring Boot 4-only module
+         names) - correct choice now that we're on Spring Boot 4.0.8; springdoc
+         2.x is for Spring Boot 3.x and would be the wrong direction here. -->
+    <springdoc.version>3.1.1</springdoc.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- grpc-bom / protobuf-bom MUST be the first entries in this dependencyManagement
+           section. Confirmed empirically (via `mvn dependency:tree` after a real, failing test
+           run): when two imported BOMs both manage the same artifact - here,
+           spring-grpc-dependencies:1.0.3 *itself* transitively imports protobuf-bom:4.33.4 -
+           Maven resolves the conflict in favor of whichever import appears FIRST in this list,
+           not the more specific/later one. Our proto-contracts module generates code against
+           protobuf-java 4.36.1 (the version buf's remote protocolbuffers/java plugin actually
+           targets); with these entries placed after spring-boot-dependencies/
+           spring-grpc-dependencies below, organization/initialization silently resolved
+           protobuf-java 4.33.4 instead, and the generated gencode's embedded version check
+           (com.google.protobuf.RuntimeVersion.validateProtobufGencodeVersion) threw
+           "Detected incompatible Protobuf Gencode/Runtime versions: gencode 4.36.1, runtime
+           4.33.4" at ApplicationContext startup - a genuine test failure, not a hypothetical.
+           This import is declared here (root), not in proto-contracts/pom.xml, because
+           dependencyManagement doesn't propagate between sibling modules: organization/
+           initialization/api-gateway only depend on proto-contracts as a plain <dependency>,
+           so THEIR protobuf-java version comes from whatever THIS pom (their actual parent)
+           resolves, regardless of what proto-contracts' own build used. -->
+      <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-bom</artifactId>
+        <version>${grpc.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-bom</artifactId>
+        <version>${protobuf.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Spring Boot BOM - manages Spring Boot + most third-party deps (Postgres driver,
+           Liquibase, JUnit 5, AssertJ, etc.) -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Spring gRPC BOM -->
+      <dependency>
+        <groupId>org.springframework.grpc</groupId>
+        <artifactId>spring-grpc-dependencies</artifactId>
+        <version>${spring-grpc.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Testcontainers BOM -->
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Internal module: generated proto/gRPC stubs shared by services -->
+      <dependency>
+        <groupId>com.supportme</groupId>
+        <artifactId>proto-contracts</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <release>${maven.compiler.release}</release>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>exec-maven-plugin</artifactId>
+          <version>3.5.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <version>3.6.0</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+</project>

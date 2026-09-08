@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/changes/001-create-initialization-token-table.yaml
+      relativeToChangelogFile: false

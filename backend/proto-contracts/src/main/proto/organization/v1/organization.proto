@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package organization.v1;
+
+option java_package = "com.supportme.proto.organization.v1";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+
+// Manages organization-level features: CMS, business card ("wizytówka"), recruitment,
+// shop, and fundraising. This is an example service shaping the contract only — full
+// business logic is out of scope for the skeleton.
+service OrganizationService {
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+}
+
+message GetOrganizationRequest {
+  string id = 1;
+}
+
+message GetOrganizationResponse {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  google.protobuf.Timestamp created_at = 4;
+}

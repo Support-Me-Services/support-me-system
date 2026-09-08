@@ -1,0 +1,23 @@
+# Codegen plan invoked by `buf generate` (bound to the generate-sources phase, see pom.xml).
+#
+# Uses buf's REMOTE plugins (Buf Schema Registry) rather than local `protoc`/
+# `protoc-gen-grpc-java` binaries: buf.build/protocolbuffers/java and
+# buf.build/grpc/java run server-side, so nothing beyond the buf CLI itself
+# needs to be installed to generate stubs (requires network access to
+# buf.build at build time). If you'd rather generate fully offline, switch
+# these to local plugins instead:
+#
+#   - protoc_builtin: java     # java message classes come bundled with protoc
+#     out: target/generated-sources/protobuf/java
+#     protoc_path: <path to a local protoc install>
+#   - local: protoc-gen-grpc-java   # needs the grpc-java codegen plugin binary
+#     out: target/generated-sources/protobuf/grpc-java  # on PATH (see https://github.com/grpc/grpc-java releases)
+#
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/java
+    out: target/generated-sources/protobuf/java
+  - remote: buf.build/grpc/java
+    out: target/generated-sources/protobuf/grpc-java
+inputs:
+  - directory: src/main/proto

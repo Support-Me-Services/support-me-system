@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.supportme</groupId>
+    <artifactId>support-me-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>organization</artifactId>
+  <packaging>jar</packaging>
+
+  <name>organization</name>
+  <description>
+    Domain service for organization-level features (CMS, business card, recruitment, shop,
+    fundraising). Exposes a gRPC server (Spring gRPC, blocking stubs on virtual threads); no
+    REST surface of its own. Persists to the organization_db PostgreSQL database via Spring
+    Data JPA + Liquibase migrations.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.supportme</groupId>
+      <artifactId>proto-contracts</artifactId>
+    </dependency>
+
+    <!-- Spring gRPC server starter.
+         TODO: verify exact artifactId/version against https://github.com/spring-projects/spring-grpc
+         (community net.devh starter is explicitly NOT used per architecture decision). -->
+    <dependency>
+      <groupId>org.springframework.grpc</groupId>
+      <artifactId>spring-grpc-server-spring-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <!-- Spring Boot 4 split its autoconfiguration into many fine-grained modules
+         (see spring-boot-liquibase / spring-boot-starter-liquibase in the BOM).
+         Just having liquibase-core on the classpath - which was enough under
+         Boot 3.x, where this autoconfiguration lived unconditionally inside
+         the monolithic spring-boot-autoconfigure jar - is no longer enough:
+         confirmed by a real test failure ("Schema validation: missing table")
+         where Liquibase silently never ran (no "liquibase" log output at
+         all). Depend on the starter, not the raw liquibase-core jar. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-liquibase</artifactId>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Testcontainers 2.x renamed its module artifacts with a "testcontainers-"
+         prefix (org.testcontainers:junit-jupiter -> org.testcontainers:testcontainers-junit-jupiter,
+         same for postgresql) - confirmed by inspecting testcontainers-bom:2.0.5's own POM. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>organization</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

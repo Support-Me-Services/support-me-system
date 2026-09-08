@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.supportme</groupId>
+    <artifactId>support-me-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>api-gateway</artifactId>
+  <packaging>jar</packaging>
+
+  <name>api-gateway</name>
+  <description>
+    Public REST API (Spring MVC, virtual threads), documented with springdoc-openapi/Swagger
+    UI. Validates access tokens issued by Keycloak (OAuth2 resource server, JWT against
+    Keycloak's JWK Set endpoint) and translates REST calls into outgoing gRPC calls to
+    organization and initialization.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.supportme</groupId>
+      <artifactId>proto-contracts</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- gRPC client starter (blocking stubs, per architecture decision - no reactive-grpc).
+         TODO: verify exact artifactId/version against https://github.com/spring-projects/spring-grpc -->
+    <dependency>
+      <groupId>org.springframework.grpc</groupId>
+      <artifactId>spring-grpc-client-spring-boot-starter</artifactId>
+    </dependency>
+
+    <!-- springdoc-openapi: Swagger UI + OpenAPI docs for the REST surface.
+         TODO: verify latest 2.x version compatible with Spring Boot 3.5.x at
+         https://springdoc.org/ -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>api-gateway</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

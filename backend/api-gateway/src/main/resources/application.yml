@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  threads:
+    virtual:
+      enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # TODO: replace with the real Keycloak realm issuer URI once the realm is created,
+          # e.g. http://localhost:8081/realms/support-me
+          issuer-uri: http://localhost:8081/realms/support-me
+
+  # Spring gRPC client channel configuration (blocking stubs, plaintext for local dev only -
+  # switch to TLS/mTLS before any shared or production deployment).
+  # TODO: verify property namespace/shape against https://github.com/spring-projects/spring-grpc
+  grpc:
+    client:
+      channels:
+        organization:
+          address: static://organization:9091
+          negotiation-type: plaintext
+        initialization:
+          address: static://initialization:9092
+          negotiation-type: plaintext
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

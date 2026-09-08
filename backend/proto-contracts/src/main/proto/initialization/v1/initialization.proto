@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package initialization.v1;
+
+option java_package = "com.supportme.proto.initialization.v1";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+
+// Manages entry points into the system (QR codes, NFC tags, email/SMS links) and their
+// lifecycle. Example service shaping the contract only.
+service InitializationService {
+  rpc CreateInitializationToken(CreateInitializationTokenRequest) returns (CreateInitializationTokenResponse);
+}
+
+enum InitializationTokenType {
+  INITIALIZATION_TOKEN_TYPE_UNSPECIFIED = 0;
+  INITIALIZATION_TOKEN_TYPE_QR = 1;
+  INITIALIZATION_TOKEN_TYPE_NFC = 2;
+  INITIALIZATION_TOKEN_TYPE_EMAIL_LINK = 3;
+  INITIALIZATION_TOKEN_TYPE_SMS_LINK = 4;
+}
+
+message CreateInitializationTokenRequest {
+  InitializationTokenType type = 1;
+  string target_url = 2;
+}
+
+message CreateInitializationTokenResponse {
+  string id = 1;
+  InitializationTokenType type = 2;
+  string target_url = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  google.protobuf.Timestamp created_at = 5;
+}

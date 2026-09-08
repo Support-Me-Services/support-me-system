@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.supportme</groupId>
+    <artifactId>support-me-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>proto-contracts</artifactId>
+  <packaging>jar</packaging>
+
+  <name>proto-contracts</name>
+  <description>
+    Shared .proto contracts for inter-service gRPC communication. Linting and breaking-change
+    detection is done with the buf CLI (see buf.yaml / buf.gen.yaml). This module wires
+    `buf generate` into the Maven build so that generated Java/gRPC stubs are compiled and
+    published as a normal Maven artifact consumed by organization/initialization/api-gateway.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.annotation</groupId>
+      <artifactId>jakarta.annotation-api</artifactId>
+    </dependency>
+  </dependencies>
+
+  <!-- grpc-bom / protobuf-bom are imported in the ROOT pom.xml's dependencyManagement, not
+       here - dependencyManagement doesn't propagate between sibling modules, so importing them
+       only in this module would leave organization/initialization/api-gateway to resolve
+       protobuf-java from whatever the root's other imported BOMs happen to manage instead. See
+       the comment on that import in ../pom.xml for the (confirmed by a real test failure)
+       reasoning. -->
+
+  <build>
+    <plugins>
+      <!--
+        Runs `buf generate` (per buf.gen.yaml) during generate-sources. Requires the buf CLI
+        to be installed and on PATH — see backend/README.md prerequisites. This is
+        intentionally NOT the protobuf-maven-plugin: buf is the tool of record here for both
+        linting (`buf lint`) and breaking-change detection (`buf breaking`), so codegen is
+        routed through it too, for a single source of truth on plugin versions (buf.gen.yaml).
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>buf-generate</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>buf</executable>
+              <arguments>
+                <argument>generate</argument>
+              </arguments>
+              <workingDirectory>${project.basedir}</workingDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Adds buf's generated-sources output directories to the compile source roots. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>add-generated-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/protobuf/java</source>
+                <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

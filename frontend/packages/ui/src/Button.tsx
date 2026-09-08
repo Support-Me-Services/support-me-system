@@ -34,6 +34,12 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   danger: "bg-danger active:bg-danger/80",
 };
 
+const TEXT_CLASSES: Record<ButtonVariant, string> = {
+  primary: "text-primary-foreground",
+  secondary: "text-secondary-foreground",
+  danger: "text-white",
+};
+
 export function Button({
   onPress,
   label,
@@ -46,11 +52,11 @@ export function Button({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      className={`items-center justify-center rounded-md px-4 py-3 ${VARIANT_CLASSES[variant]} ${
+      className={`items-center justify-center rounded-pill px-6 py-4 ${VARIANT_CLASSES[variant]} ${
         disabled ? "opacity-50" : ""
       }`}
     >
-      <Text className="text-base font-medium text-primary-foreground">
+      <Text className={`font-sans text-base font-semibold ${TEXT_CLASSES[variant]}`}>
         {label}
       </Text>
     </Pressable>

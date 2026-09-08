@@ -9,11 +9,13 @@ React/React Native codebase plus a Spring Boot microservices backend.
 
 ```
 support-me-system/
-  frontend/     Turborepo monorepo — Next.js (web, static SPA export) + Expo (iOS/Android),
+  frontend/     Turborepo monorepo — Next.js (web, client-rendered app on a Node server) +
+                Expo (iOS/Android),
                 sharing screens/navigation via Solito. See frontend/README.md.
   backend/      Maven multi-module reactor — api-gateway, organization, initialization,
                 proto-contracts. See backend/README.md.
-  docker-compose.yml   Local dev environment: Postgres, Keycloak, and the three services.
+  docker-compose.yml   Local dev environment: one Postgres instance per service, Keycloak, and
+                the three backend services.
   .github/workflows/   CI (backend-ci.yml; a frontend-ci.yml lives alongside it).
 ```
 
@@ -21,14 +23,14 @@ support-me-system/
 
 | Layer | Choice |
 |---|---|
-| Web | Next.js, static client-rendered SPA (no SSR — no public pages need SEO), NativeWind styling |
+| Web | Next.js, client-rendered app served by `next start` (not a static export — see frontend/README.md), NativeWind styling |
 | Mobile | Expo (iOS/Android), same screens as web via `react-native-web` + Solito |
 | API client | Orval-generated TanStack Query hooks from the `api-gateway` OpenAPI/Swagger spec |
 | Auth | Keycloak (OIDC) — `react-oidc-context` (web) / `expo-auth-session` (native) |
 | API Gateway | Spring Boot, REST + springdoc/Swagger, OAuth2 resource server (validates Keycloak JWTs) |
 | Domain services | `organization` (CMS, business card, recruitment, shop, fundraising) and `initialization` (QR/NFC/email/SMS entry points) — Spring Boot, gRPC servers, PostgreSQL + Liquibase |
 | Inter-service comms | gRPC (Spring gRPC, blocking stubs + virtual threads); external traffic only via api-gateway's REST API |
-| Data | One PostgreSQL cluster, one logical database per service (+ Keycloak's own) |
+| Data | One PostgreSQL *instance* per service (+ Keycloak's own) - not just a logical database on a shared cluster, so no service shares credentials or blast radius with another |
 | Local dev infra | Docker Compose | **Production infra** | Kubernetes |
 | CI/CD | GitHub Actions | **Observability** | OpenTelemetry + Grafana (Prometheus/Loki/Tempo) |
 
@@ -100,6 +102,21 @@ curl -X POST "http://localhost:8081/admin/realms/support-me/users" \
     "enabled":true,"firstName":"Test","lastName":"User",
     "credentials":[{"type":"password","value":"TestPass123!","temporary":false}]
   }'
+
+# 5. Create the SUPER_ADMIN realm role (global role: approves ORG deletion requests -
+#    see api-gateway's SecurityConfig, "/api/v1/admin/**" -> hasRole("SUPER_ADMIN"))
+curl -X POST "http://localhost:8081/admin/realms/support-me/roles" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"SUPER_ADMIN","description":"Can approve ORG deletion requests"}'
+
+# 6. Assign it to testuser (swap the user id for whoever needs it)
+USER_ID=$(curl -s "http://localhost:8081/admin/realms/support-me/users?username=testuser&exact=true" \
+  -H "Authorization: Bearer $TOKEN" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+ROLE_ID=$(curl -s "http://localhost:8081/admin/realms/support-me/roles/SUPER_ADMIN" \
+  -H "Authorization: Bearer $TOKEN" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -X POST "http://localhost:8081/admin/realms/support-me/users/$USER_ID/role-mappings/realm" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "[{\"id\":\"$ROLE_ID\",\"name\":\"SUPER_ADMIN\"}]"
 ```
 
 Then `frontend/apps/web/.env.local` (gitignored, not committed):
@@ -117,4 +134,4 @@ page → sign in as `testuser` / `TestPass123!` → redirected back, shows "Sign
 "Log out" → back to "Not signed in".
 
 This setup is wiped by `docker compose down -v` (removes the Postgres volume Keycloak's realm
-data lives in) — re-run the four commands above after recreating the stack.
+data lives in) — re-run the six commands above after recreating the stack.

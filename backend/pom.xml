@@ -159,6 +159,16 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <configuration>
             <release>${maven.compiler.release}</release>
+            <!-- spring-boot-starter-parent sets this by default; this reactor uses a plain
+                 custom parent (BOM import only), so it has to be set explicitly. Without it,
+                 Spring MVC can't resolve an implicit-named @PathVariable/@RequestParam at
+                 runtime (confirmed by a real failure: every @PathVariable-based endpoint threw
+                 "Name for argument of type [java.lang.String] not specified" - reflection alone
+                 doesn't retain parameter names unless the class file was compiled with this
+                 flag). Records are unaffected (component names are part of the class file
+                 regardless), which is why this went unnoticed until an endpoint using
+                 @PathVariable was actually exercised end-to-end. -->
+            <parameters>true</parameters>
           </configuration>
         </plugin>
         <plugin>

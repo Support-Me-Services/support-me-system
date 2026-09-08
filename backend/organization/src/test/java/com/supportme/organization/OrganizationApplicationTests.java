@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Smoke test: Spring context loads against a real Postgres (via Testcontainers) with Liquibase
- * migrations applied, and a basic JPA repository round-trip works.
+ * migrations applied, and a basic JPA repository round-trip works for both organization types.
  */
 @Testcontainers
 // port=0 binds an OS-assigned ephemeral port for the gRPC server instead of
@@ -51,13 +51,29 @@ class OrganizationApplicationTests {
     }
 
     @Test
-    void savesAndFindsOrganization() {
-        Organization organization = new Organization(UUID.randomUUID(), "Test Org", "A test organization", Instant.now());
+    void savesAndFindsIndividualOrganization() {
+        Organization organization = Organization.createIndividual(
+                UUID.randomUUID(), UUID.randomUUID(), "Jan", "Kowalski", "kowalski-jan", Instant.now());
 
         organizationRepository.save(organization);
 
         Optional<Organization> found = organizationRepository.findById(organization.getId());
         assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo("Test Org");
+        assertThat(found.get().getName()).isEqualTo("Jan Kowalski");
+        assertThat(found.get().getSlug()).isEqualTo("kowalski-jan");
+    }
+
+    @Test
+    void savesAndFindsOrgOrganization() {
+        Organization organization = Organization.createOrg(
+                UUID.randomUUID(), UUID.randomUUID(), "Acme Foundation", "Fundacja", "fundacja", "acme-foundation",
+                Instant.now());
+
+        organizationRepository.save(organization);
+
+        Optional<Organization> found = organizationRepository.findById(organization.getId());
+        assertThat(found).isPresent();
+        assertThat(found.get().getName()).isEqualTo("Acme Foundation");
+        assertThat(found.get().getCategorySlug()).isEqualTo("fundacja");
     }
 }

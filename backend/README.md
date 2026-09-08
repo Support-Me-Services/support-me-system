@@ -9,7 +9,7 @@ a module here — it runs as its own container (see the root `docker-compose.yml
 | Module              | Description                                                                 |
 |---------------------|------------------------------------------------------------------------------|
 | `proto-contracts`   | `.proto` definitions (linted/checked with `buf`) + generated gRPC Java stubs |
-| `organization`       | Domain service: organizations (CMS, business card, recruitment, shop, fundraising). gRPC server. |
+| `organization`       | Domain service: organization management (SCRUM-183 - IND/ORG creation, the public "about" business-card page, both deletion workflows) plus future CMS/recruitment/shop/fundraising features. gRPC server. |
 | `initialization`     | Domain service: entry points (QR/NFC/email/SMS links) and their lifecycle. gRPC server. |
 | `api-gateway`        | Public REST API (Spring MVC + springdoc/OpenAPI), OAuth2 resource server validating Keycloak JWTs, gRPC client to `organization` and `initialization`. |
 
@@ -49,8 +49,11 @@ mvn -pl proto-contracts,organization,initialization,api-gateway -am verify -Dski
 
 ## Local dev environment
 
-See the root-level `docker-compose.yml` (one directory up) for Postgres, Keycloak, and the
-three services wired together for local development.
+See the root-level `docker-compose.yml` (one directory up) for the per-service Postgres
+instances, Keycloak, and the three services wired together for local development. Each service
+gets its own Postgres container, own volume, and own low-privilege role - never a shared
+superuser: `organization-db` (host port 5432), `initialization-db` (host port 5433), and
+`auth-db` for Keycloak (host port 5434).
 
 ## Pinned versions (verified against Maven Central)
 
@@ -84,7 +87,8 @@ combinations has broken the build at least once during development.
 ## Verified end-to-end
 
 `mvn -pl proto-contracts,organization,initialization,api-gateway -am verify` — **BUILD SUCCESS**,
-all 5 tests passing (2 in `organization`, 2 in `initialization`, 1 in `api-gateway`), with:
+all 19 tests passing (16 in `organization` - 13 `OrganizationService` unit tests plus 3
+Testcontainers integration tests, 2 in `initialization`, 1 in `api-gateway`), with:
 
 - `buf lint` clean (fixed two real STANDARD-ruleset violations: RPC response message names and
   enum value prefixes; see `proto-contracts/src/main/proto/`)
@@ -106,8 +110,9 @@ for integration tests regardless: never bind a hardcoded port in a test.
 
 ## Verified end-to-end via Docker Compose
 
-`docker compose up -d --build` — all 5 containers (`postgres`, `auth`, `organization`,
-`initialization`, `api-gateway`) run successfully, and a full browser login/logout cycle against
+`docker compose up -d --build` — all 7 containers (`organization-db`, `initialization-db`,
+`auth-db`, `auth`, `organization`, `initialization`, `api-gateway`) run successfully, and a full
+browser login/logout cycle against
 the `support-me` realm works (see the root `README.md`'s "Local auth setup"). Two real bugs
 surfaced only at this stage (never running the actual executable jars before):
 
@@ -126,6 +131,57 @@ surfaced only at this stage (never running the actual executable jars before):
   endpoints directly from the host until resolved (doesn't block browser-based login/logout, which
   only talks to Keycloak on 8081).
 
+## SCRUM-183: organization management
+
+Implements the full IND/ORG organization feature end to end:
+
+- **Data model** (`organization`/`organization_membership` tables, migrations `001`/`002`):
+  one `organization` row per IND or ORG, typed by `type`; ORG administrators live in a
+  separate `organization_membership` table (IND has no memberships - ownership is
+  `organization.owner_user_id` directly). Partial unique indexes (raw `sql` changesets,
+  Postgres-specific) enforce: at most one non-deleted IND per owner; IND slugs unique
+  globally; ORG slugs unique per `category_slug`. Deletion is a soft delete
+  (`status=DELETED`) so slugs stay reserved forever and history is auditable.
+- **Slugs**: `SlugGenerator` normalizes to lowercase ASCII (strips diacritics, incl. Polish
+  `ł`/`Ł` which `Normalizer` doesn't decompose), then appends `-2`, `-3`, ... on collision,
+  with a `DataIntegrityViolationException` retry loop in `OrganizationService` as a
+  concurrency backstop.
+- **Authorization split** (see `organization.proto`'s service doc comment): api-gateway
+  authenticates (Keycloak JWT) and checks the one *global* role (`SUPER_ADMIN`, read from the
+  non-standard `realm_access.roles` Keycloak claim via `KeycloakRealmRoleConverter` -
+  Spring Security's default converter looks at `scope`/`scp` and would silently grant
+  nothing). Every other, *resource-level* check (IND owner? ORG administrator?) is enforced
+  in `OrganizationService`, the only place that owns membership data - the gateway always
+  forwards `actor_user_id` from the validated JWT `sub` claim, never from client input.
+- **Wizytowka XSS boundary**: `AboutContentSanitizer` (OWASP Java HTML Sanitizer) strips
+  everything but a formatting/links/tables allowlist before persisting - the about page is
+  guest-rendered HTML with no auth, so this is a real stored-XSS boundary, not defense in
+  depth.
+- **Deletion workflows**: ORG goes through administrator-requests -> Super Administrator
+  approves (`RequestOrganizationDeletion`/`WithdrawOrganizationDeletion`/
+  `ApproveOrganizationDeletion`); IND goes through an owner-only double confirmation
+  (`StartIndividualOrganizationDeletion` returns a 10-minute confirmation token,
+  `ConfirmIndividualOrganizationDeletion` must echo it back).
+- Root `pom.xml`'s `maven-compiler-plugin` now sets `<parameters>true</parameters>` -
+  **confirmed by a real failure**: every `@PathVariable`/`@RequestParam`-based endpoint threw
+  `IllegalArgumentException: Name for argument of type [java.lang.String] not specified` at
+  request time, because this reactor's custom parent (unlike
+  `spring-boot-starter-parent`, which sets this by default) never enabled it. Records were
+  unaffected (component names come from the class file regardless), which is why the
+  pre-existing skeleton's tests never caught this - none of them exercised an endpoint with a
+  path variable.
+
+**Verified against the real `docker compose` stack**, not just `mvn test`: rebuilt
+`organization`+`api-gateway`, then ran the full REST flow (create IND -> duplicate rejected
+(409) -> list mine -> other user denied (403) -> about-page XSS payload sanitized -> guest
+fetches the public about page -> deletion step 1/2 with a wrong-token rejection (409) in
+between -> guest gets 404 post-deletion; then create ORG -> request deletion -> non-admin
+denied (403) -> Super Administrator lists and approves it) against the live containers. Had
+to run this from *inside* the `api-gateway` container (`docker exec ... bash`, raw
+`/dev/tcp` HTTP - the image has no `curl`/`wget`) because of the pre-existing host port 8080
+forwarding quirk noted below; every step returned exactly the expected status and body.
+
 ## Notes / TODOs
 
-- Investigate the `api-gateway` port 8080 host-forwarding issue above.
+- Investigate the `api-gateway` port 8080 host-forwarding issue above (worked around for
+  SCRUM-183 verification by testing from inside the Docker network instead).

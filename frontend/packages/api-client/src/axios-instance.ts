@@ -1,8 +1,8 @@
-import axios, {
-  type AxiosError,
-  type AxiosRequestConfig,
-  type InternalAxiosRequestConfig,
-} from "axios";
+import axios, { type AxiosError, type AxiosRequestConfig } from "axios";
+import {
+  getAccessToken,
+  refreshAccessToken,
+} from "@support-me/auth";
 
 /**
  * Shared axios instance used by the Orval-generated hooks (as the custom
@@ -12,18 +12,12 @@ import axios, {
  *   1. Resolve the API base URL per platform (web: process.env, native:
  *      Expo Constants / EXPO_PUBLIC_ env vars).
  *   2. Request interceptor: attach the current OIDC access token as a
- *      Bearer Authorization header.
+ *      Bearer Authorization header (via @support-me/auth's non-hook
+ *      getAccessToken() - this module runs outside React and can't call
+ *      useAuth() itself).
  *   3. Response interceptor: on a 401, attempt a single token refresh and
  *      retry the original request; if refresh fails, propagate the error
  *      (the app-level auth state will reflect the user as logged out).
- *
- * TODO(auth-integration): the calls into `@support-me/auth` below are left
- * as clearly-marked TODOs because the exact shape of the token
- * getter/refresher depends on finalizing packages/auth (see that package's
- * README "TODO" section). Once finalized, replace the placeholder
- * `getAccessToken` / `refreshAccessToken` functions with real imports, e.g.:
- *
- *   import { getStoredAccessToken, refreshAccessToken } from '@support-me/auth';
  */
 
 function resolveBaseUrl(): string {
@@ -40,47 +34,21 @@ function resolveBaseUrl(): string {
       ? process.env.EXPO_PUBLIC_API_BASE_URL
       : undefined;
 
-  return (
-    webBaseUrl ??
-    nativeBaseUrl ??
-    // TODO(local-dev): confirm the api-gateway's local dev port.
-    "http://localhost:8080"
-  );
+  return webBaseUrl ?? nativeBaseUrl ?? "http://localhost:8080";
 }
 
-// TODO(auth-integration): replace with the real accessor once
-// packages/auth exposes a non-hook way to read the current token (the
-// `useAuth()` hook itself can't be called outside of React). One option:
-// have packages/auth also export a small subscribable token store that
-// both the React hook and this axios instance read from.
-async function getAccessToken(): Promise<string | null> {
-  return null;
-}
-
-// TODO(auth-integration): replace with the real refresh call — on native
-// this should call the `refreshAsync` flow implemented in
-// packages/auth/src/use-auth.native.tsx (currently kept internal to that
-// module); on web this should call `oidc.signinSilent()` from
-// react-oidc-context. Both need to be exposed from packages/auth in a
-// framework-agnostic way (see that package's TODOs).
-async function refreshAccessToken(): Promise<string | null> {
-  return null;
-}
-
-export const axiosInstance = axios.create({
+const AXIOS_INSTANCE = axios.create({
   baseURL: resolveBaseUrl(),
   timeout: 15_000,
 });
 
-axiosInstance.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    const token = await getAccessToken();
-    if (token) {
-      config.headers.set("Authorization", `Bearer ${token}`);
-    }
-    return config;
-  },
-);
+AXIOS_INSTANCE.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
+  if (token) {
+    config.headers.set("Authorization", `Bearer ${token}`);
+  }
+  return config;
+});
 
 let isRefreshing = false;
 let pendingRequests: Array<(token: string | null) => void> = [];
@@ -94,7 +62,7 @@ function onRefreshed(token: string | null) {
   pendingRequests = [];
 }
 
-axiosInstance.interceptors.response.use(
+AXIOS_INSTANCE.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as
@@ -124,7 +92,7 @@ axiosInstance.interceptors.response.use(
             ...originalRequest.headers,
             Authorization: `Bearer ${token}`,
           };
-          resolve(axiosInstance(originalRequest));
+          resolve(AXIOS_INSTANCE(originalRequest));
         });
       });
     }
@@ -140,11 +108,22 @@ axiosInstance.interceptors.response.use(
         ...originalRequest.headers,
         Authorization: `Bearer ${newToken}`,
       };
-      return axiosInstance(originalRequest);
+      return AXIOS_INSTANCE(originalRequest);
     } finally {
       isRefreshing = false;
     }
   },
 );
+
+/**
+ * Orval's axios mutator contract: a function taking the generated request
+ * config and returning `Promise<T>` of the response *data* (not the full
+ * AxiosResponse). This is what every generated hook in `src/generated/`
+ * actually calls - the configured `AXIOS_INSTANCE` above is an
+ * implementation detail behind it, not the mutator itself.
+ */
+export const axiosInstance = <T,>(config: AxiosRequestConfig): Promise<T> => {
+  return AXIOS_INSTANCE(config).then((response) => response.data);
+};
 
 export default axiosInstance;

@@ -4,9 +4,20 @@
   "compilerOptions": {
     "baseUrl": ".",
     "jsx": "react-jsx",
+    // Same reason as moduleSuffixes below: type-checking now pulls in
+    // @support-me/auth's web variant, which uses `window`/`document` - the
+    // root base tsconfig's lib is ES2020-only (this package has no runtime
+    // DOM dependency of its own, only a transitive type-checking one).
+    "lib": ["dom", "ES2020"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noEmit": true
+    "noEmit": true,
+    // api-client now imports @support-me/auth, whose entry point resolves to
+    // a platform-specific file (use-auth.web.tsx/use-auth.native.tsx) via
+    // this same moduleSuffixes mechanism apps/web's own tsconfig uses -
+    // without it, tsc can't find "./use-auth" at all when type-checking this
+    // package standalone (confirmed by a real `tsc --noEmit` failure).
+    "moduleSuffixes": [".web", ""]
   },
   "include": ["src", "orval.config.ts"],
   "exclude": ["node_modules"]

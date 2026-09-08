@@ -10,7 +10,7 @@
  * consumer — apps/web, apps/mobile, and shared packages/app screens — can
  * call `useAuth()` uniformly without ever branching on platform.
  */
-export { useAuth, AuthProvider } from "./use-auth";
+export { useAuth, AuthProvider, getAccessToken, refreshAccessToken } from "./use-auth";
 export type { AuthContextValue, AuthUser } from "./use-auth";
 
 export { oidcConfig, getIssuerUrl, getDiscoveryUrl } from "./config";

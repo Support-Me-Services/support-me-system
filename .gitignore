@@ -36,6 +36,10 @@ out/
 dist/
 *.tsbuildinfo
 
+# Fetched from a running api-gateway (`curl .../api-docs`) to feed frontend/packages/api-client's
+# Orval codegen (see orval.config.ts) - a derived local-dev artifact, not source of truth.
+backend/api-gateway-openapi.json
+
 # IDEs
 .idea/
 .vscode/

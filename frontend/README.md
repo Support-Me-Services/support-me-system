@@ -19,22 +19,26 @@ Expo Router (native) and Next.js App Router (web).
 | Styling | NativeWind v4 (Tailwind syntax, works on RN + web via react-native-web) |
 | Components | Custom design system (`packages/ui`), no third-party UI library |
 | Auth | OIDC against Keycloak — `react-oidc-context` (web) / `expo-auth-session` (native), unified behind `useAuth()` |
-| Rendering mode (web) | Pure client-rendered SPA (`output: "export"`) — no SSR/SEO, single static load then all data via REST |
+| Rendering mode (web) | Client-rendered app served by `next start` (a real Next.js server) — data via REST, but genuinely dynamic routes need per-request rendering, not `output: "export"` |
 | Language | TypeScript, strict mode |
 
-## Rendering mode: static SPA, not SSR
+## Rendering mode: server-rendered routing shell, not SSR data fetching
 
-`apps/web` builds to a static `out/` folder (`next build` with `output: "export"`
-in `next.config.js`) — there is no Next.js server in production. The browser
-loads the HTML/JS bundle once; every screen is a `"use client"` component, and
-all data and images are fetched afterwards straight from the browser to the
-`api-gateway` REST API via TanStack Query / axios. Deploy `out/` to any static
-host or CDN (S3+CloudFront, Nginx, etc.).
+**Reverted from `output: "export"` (SCRUM-183)** — confirmed by a real failure: `output:
+"export"` requires every dynamic App Router segment (`[id]`, `[slug]`, ...) to fully
+enumerate its params via `generateStaticParams()`, enforced even under `next dev`, not just
+`next build`. SCRUM-183 added routes whose params are genuinely created at runtime by users
+(an organization's id, an IND/ORG "about" page slug) - there is no list to enumerate ahead of
+time, so static export is fundamentally incompatible with these routes.
 
-This was a deliberate choice: the system has no public pages that need SEO
-(it's an internal/authenticated app), so Next.js is used here only for its
-file-based router — which is what lets Solito share routing/navigation code
-with `apps/mobile`'s Expo Router — not for SSR.
+`apps/web` is now built and run as a normal Next.js server (`next build` + `next start`,
+or `next dev` locally) instead of a static `out/` export. This is **not** a switch to
+server-side data fetching, though: every screen is still a `"use client"` component doing its
+own data fetching via TanStack Query/axios straight to the `api-gateway` REST API, exactly as
+before - the only thing that changed is that route resolution for dynamic segments now happens
+per-request on a live server instead of being fully pre-baked at build time. Next.js is still
+used mainly for its file-based router, which is what lets Solito share routing/navigation code
+with `apps/mobile`'s Expo Router.
 
 ### NativeWind + Next.js: three required pieces, easy to miss one
 

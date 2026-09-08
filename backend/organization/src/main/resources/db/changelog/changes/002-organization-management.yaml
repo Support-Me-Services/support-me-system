@@ -1,0 +1,164 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-01-add-organization-management-columns
+      author: supportme
+      changes:
+        - dropColumn:
+            tableName: organization
+            columnName: description
+        - addColumn:
+            tableName: organization
+            columns:
+              # Backfilled with a placeholder default so the addColumn itself doesn't fail on
+              # an existing (dev-only, pre-release) row; every application-level insert always
+              # supplies a real value going forward, and there is no production data yet for
+              # this greenfield service.
+              - column:
+                  name: type
+                  type: varchar(10)
+                  defaultValue: ORG
+                  constraints:
+                    nullable: false
+              - column:
+                  name: owner_user_id
+                  type: uuid
+              - column:
+                  name: first_name
+                  type: varchar(255)
+              - column:
+                  name: last_name
+                  type: varchar(255)
+              - column:
+                  name: category
+                  type: varchar(255)
+              - column:
+                  name: category_slug
+                  type: varchar(255)
+              - column:
+                  name: slug
+                  type: varchar(255)
+              - column:
+                  name: about_content
+                  type: text
+              - column:
+                  name: status
+                  type: varchar(20)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deletion_requested_by
+                  type: uuid
+              - column:
+                  name: deletion_requested_at
+                  type: timestamptz
+              - column:
+                  name: deletion_confirmation_token
+                  type: uuid
+              - column:
+                  name: deletion_confirmation_expires_at
+                  type: timestamptz
+              - column:
+                  name: updated_at
+                  type: timestamptz
+              - column:
+                  name: deleted_at
+                  type: timestamptz
+        - addNotNullConstraint:
+            tableName: organization
+            columnName: owner_user_id
+            columnDataType: uuid
+        - sql:
+            sql: UPDATE organization SET updated_at = created_at WHERE updated_at IS NULL
+        - addNotNullConstraint:
+            tableName: organization
+            columnName: updated_at
+            columnDataType: timestamptz
+
+  - changeSet:
+      id: 002-02-organization-unique-indexes
+      author: supportme
+      comment: >
+        Partial unique indexes (Postgres-specific, hence raw sql - Liquibase's createIndex
+        changeType has no portable way to express a WHERE clause). One IND organization per
+        owner (excluding soft-deleted ones, so a deleted IND doesn't block creating a new
+        one); slugs are scoped per type and, for ORG, per category, and are never released
+        even after a soft delete so an old public "about" URL can't silently start resolving
+        to a different, unrelated organization later.
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_organization_one_active_ind_per_owner
+              ON organization (owner_user_id)
+              WHERE type = 'IND' AND status <> 'DELETED'
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_organization_ind_slug
+              ON organization (slug)
+              WHERE type = 'IND'
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_organization_org_slug
+              ON organization (category_slug, slug)
+              WHERE type = 'ORG'
+        - createIndex:
+            tableName: organization
+            indexName: ix_organization_owner_user_id
+            columns:
+              - column:
+                  name: owner_user_id
+        - createIndex:
+            tableName: organization
+            indexName: ix_organization_status
+            columns:
+              - column:
+                  name: status
+
+  - changeSet:
+      id: 002-03-create-organization-membership-table
+      author: supportme
+      comment: >
+        ORG-only membership/role table. IND organizations have no rows here - ownership is
+        tracked directly on organization.owner_user_id instead.
+      changes:
+        - createTable:
+            tableName: organization_membership
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: organization_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_organization_membership_organization
+                    references: organization(id)
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: organization_membership
+            columnNames: organization_id, user_id
+            constraintName: ux_organization_membership_org_user
+        - createIndex:
+            tableName: organization_membership
+            indexName: ix_organization_membership_user_id
+            columns:
+              - column:
+                  name: user_id

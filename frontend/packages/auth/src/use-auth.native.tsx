@@ -13,6 +13,7 @@ import {
   type AuthRequestConfig,
   type DiscoveryDocument,
   exchangeCodeAsync,
+  fetchDiscoveryAsync,
   makeRedirectUri,
   refreshAsync,
   useAutoDiscovery,
@@ -28,6 +29,8 @@ export interface AuthUser {
   id: string;
   email?: string;
   name?: string;
+  /** Keycloak realm roles (from the access token's `realm_access.roles`), e.g. "SUPER_ADMIN". */
+  roles: string[];
 }
 
 export interface AuthContextValue {
@@ -154,33 +157,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // clear the Keycloak SSO session, not just local tokens.
   }, [persistTokens]);
 
-  // TODO: wire this into packages/api-client's axios response interceptor so
-  // a 401 triggers `refreshAsync` here and retries the original request.
-  const refresh = useCallback(async () => {
-    if (!discovery || !refreshToken) return null;
-    const tokenResult = await refreshAsync(
-      { clientId: oidcConfig.clientId, refreshToken },
-      discovery,
-    );
-    await persistTokens(
-      tokenResult.accessToken,
-      tokenResult.refreshToken ?? refreshToken,
-    );
-    return tokenResult.accessToken;
-  }, [discovery, refreshToken, persistTokens]);
-
-  // Expose refresh on the module scope so api-client can eventually import
-  // it directly if needed (kept internal/undocumented for now).
-  void refresh;
+  // Token refresh for API calls is handled by the standalone
+  // `refreshAccessToken()` below (reads/writes SecureStore directly, so it
+  // works from `@support-me/api-client`'s axios instance outside React).
+  // in-component state (`accessToken`/`refreshToken`) is only reloaded from
+  // SecureStore on next mount/focus - acceptable since a 401-triggered
+  // refresh mid-session is transparent to the UI either way.
 
   const user = useMemo<AuthUser | null>(() => {
     if (!accessToken) return null;
     const claims = decodeJwtPayload(accessToken);
     if (!claims) return null;
+    const realmAccess = claims.realm_access as { roles?: unknown } | undefined;
     return {
       id: String(claims.sub ?? ""),
       email: typeof claims.email === "string" ? claims.email : undefined,
       name: typeof claims.name === "string" ? claims.name : undefined,
+      roles: Array.isArray(realmAccess?.roles)
+        ? (realmAccess.roles as string[])
+        : [],
     };
   }, [accessToken]);
 
@@ -205,4 +200,39 @@ export function useAuth(): AuthContextValue {
     throw new Error("useAuth() must be used within <AuthProvider>");
   }
   return ctx;
+}
+
+// Non-hook token accessors for `@support-me/api-client`'s axios instance,
+// which runs outside React and can't call `useAuth()` itself. Reads/writes
+// SecureStore directly rather than component state, since SecureStore is
+// already the source of truth `AuthProvider` restores from on mount.
+export async function getAccessToken(): Promise<string | null> {
+  return SecureStore.getItemAsync(SECURE_STORE_KEYS.accessToken);
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = await SecureStore.getItemAsync(
+    SECURE_STORE_KEYS.refreshToken,
+  );
+  if (!refreshToken) return null;
+  try {
+    const discovery = await fetchDiscoveryAsync(getDiscoveryUrl(oidcConfig));
+    const tokenResult = await refreshAsync(
+      { clientId: oidcConfig.clientId, refreshToken },
+      discovery,
+    );
+    await SecureStore.setItemAsync(
+      SECURE_STORE_KEYS.accessToken,
+      tokenResult.accessToken,
+    );
+    if (tokenResult.refreshToken) {
+      await SecureStore.setItemAsync(
+        SECURE_STORE_KEYS.refreshToken,
+        tokenResult.refreshToken,
+      );
+    }
+    return tokenResult.accessToken;
+  } catch {
+    return null;
+  }
 }

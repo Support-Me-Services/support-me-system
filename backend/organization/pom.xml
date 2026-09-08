@@ -48,6 +48,15 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
+
+    <!-- Sanitizes the "about" (wizytowka) rich-text HTML server-side before it's persisted,
+         so stored content can never carry an XSS payload regardless of what the rich-text
+         editor on the frontend allows through. -->
+    <dependency>
+      <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+      <artifactId>owasp-java-html-sanitizer</artifactId>
+      <version>20240325.1</version>
+    </dependency>
     <!-- Spring Boot 4 split its autoconfiguration into many fine-grained modules
          (see spring-boot-liquibase / spring-boot-starter-liquibase in the BOM).
          Just having liquibase-core on the classpath - which was enough under

@@ -13,6 +13,23 @@ export interface AuthUser {
   id: string;
   email?: string;
   name?: string;
+  /** Keycloak realm roles (from the access token's `realm_access.roles`), e.g. "SUPER_ADMIN". */
+  roles: string[];
+}
+
+function decodeAccessTokenRoles(accessToken: string | undefined): string[] {
+  if (!accessToken) return [];
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload) return [];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const claims = JSON.parse(json) as { realm_access?: { roles?: string[] } };
+    return Array.isArray(claims.realm_access?.roles)
+      ? claims.realm_access.roles
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface AuthContextValue {
@@ -28,6 +45,31 @@ export interface AuthContextValue {
 // adapter so consumers depend only on the platform-agnostic shape above,
 // never on react-oidc-context's types directly.
 const AdapterContext = createContext<AuthContextValue | null>(null);
+
+// Non-hook token accessors for `@support-me/api-client`'s axios instance,
+// which runs outside React and can't call `useAuth()` itself. `AdapterBridge`
+// is always mounted (packages/app's <Provider> wraps every screen), so these
+// module-level values stay in sync with the latest oidc state for the
+// lifetime of the app.
+let latestAccessToken: string | null = null;
+let latestSigninSilent: (() => Promise<unknown>) | null = null;
+
+export async function getAccessToken(): Promise<string | null> {
+  return latestAccessToken;
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  if (!latestSigninSilent) return null;
+  try {
+    const user = await latestSigninSilent();
+    const token =
+      (user as { access_token?: string } | null)?.access_token ?? null;
+    latestAccessToken = token;
+    return token;
+  } catch {
+    return null;
+  }
+}
 
 const oidcProviderSettings: AuthProviderProps = {
   authority: getIssuerUrl(oidcConfig),
@@ -50,6 +92,9 @@ const oidcProviderSettings: AuthProviderProps = {
 function AdapterBridge({ children }: { children: React.ReactNode }) {
   const oidc = useOidcAuth();
 
+  latestAccessToken = oidc.user?.access_token ?? null;
+  latestSigninSilent = () => oidc.signinSilent();
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated: oidc.isAuthenticated,
@@ -59,6 +104,7 @@ function AdapterBridge({ children }: { children: React.ReactNode }) {
             id: oidc.user.profile.sub,
             email: oidc.user.profile.email,
             name: oidc.user.profile.name,
+            roles: decodeAccessTokenRoles(oidc.user.access_token),
           }
         : null,
       accessToken: oidc.user?.access_token ?? null,

@@ -2,14 +2,17 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // This app is a pure client-rendered SPA: no SEO requirement, no
-  // server-side data fetching. `output: "export"` makes `next build`
-  // emit a static apps/web/out/ folder (index.html + JS/CSS bundles) that
-  // the browser loads ONCE; every screen is a "use client" component, so
-  // all data/images after that initial load go through TanStack
-  // Query/axios straight to the REST api-gateway. Deploy `out/` to any
-  // static host or CDN — no Node server required in production.
-  output: "export",
+  // NOT a static export (`output: "export"`) despite the original architecture note here -
+  // reverted after a real failure: SCRUM-183 added genuinely dynamic, runtime-created public
+  // routes (organization ids, IND/ORG "about" page slugs that only exist once a user creates
+  // them) as dynamic App Router segments (`[id]`, `[slug]`, `[categorySlug]/[nameSlug]`).
+  // `output: "export"` requires every dynamic segment to fully enumerate its params via
+  // generateStaticParams() - enforced even under `next dev`, not just `next build` - which is
+  // fundamentally incompatible with params that don't exist until a user creates them later.
+  // Every screen is still a "use client" component doing its own data fetching via TanStack
+  // Query/axios (no server-side data fetching/SSR data logic added), so this is otherwise
+  // still deployed like an SPA - just via a Node server (`next start`) instead of static
+  // files, so these routes can render on demand.
   images: {
     // Next's built-in Image Optimization API needs a Node server and is
     // unavailable in static export. Shared components should prefer

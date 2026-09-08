@@ -2,31 +2,74 @@
 #
 # LOCAL DEV ONLY. Production runs on Kubernetes per the architecture decision — this compose
 # file is not used to deploy anywhere else; it exists purely to let you run the full backend
-# stack (Postgres + Keycloak + the three Spring Boot services) on a laptop.
+# stack on a laptop.
 #
 # No top-level `name:` here (Compose Spec added it in later CLI versions) -
 # a dev machine running Docker Compose v2.2.3 rejected it as an unknown
 # property. Project name defaults to the directory name instead, which is
 # already "support-me-system".
+#
+# Database-per-service: each service gets its OWN Postgres container (own volume, own
+# credentials) rather than one shared Postgres instance with per-service logical databases.
+# Two reasons, not just one:
+#  - Blast radius / ops isolation: one service's DB can be restarted, resized, upgraded, or
+#    restored from backup without touching any other service's data.
+#  - Least privilege: each service authenticates as its OWN low-privilege role, scoped to its
+#    OWN database. The previous shared-instance setup had every service (including Keycloak)
+#    connect as the single Postgres *superuser* - meaning a bug or compromise in any one
+#    service could read/write every other service's data. That's fixed here regardless of the
+#    instance-per-service question: even a shared instance should never share a superuser
+#    across services.
 
 services:
 
-  postgres:
+  organization-db:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      # Consumed by init-multiple-dbs.sh (runs once, only against an empty data volume) to
-      # create one logical database per service on this single shared Postgres instance.
-      POSTGRES_MULTIPLE_DATABASES: "organization_db,initialization_db,keycloak_db"
+      POSTGRES_DB: organization_db
+      POSTGRES_USER: organization
+      POSTGRES_PASSWORD: organization
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/docker/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+      - organization_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U organization -d organization_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  initialization-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: initialization_db
+      POSTGRES_USER: initialization
+      POSTGRES_PASSWORD: initialization
+    ports:
+      - "5433:5432"
+    volumes:
+      - initialization_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U initialization -d initialization_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    ports:
+      - "5434:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -42,16 +85,16 @@ services:
     command: start-dev
     environment:
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: postgres
+      KC_DB_URL: jdbc:postgresql://auth-db:5432/keycloak_db
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       # Host 8081 -> container 8080, so it doesn't collide with api-gateway's 8080.
       - "8081:8080"
     depends_on:
-      postgres:
+      auth-db:
         condition: service_healthy
 
   organization:
@@ -60,12 +103,12 @@ services:
       dockerfile: organization/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/organization_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://organization-db:5432/organization_db
+      SPRING_DATASOURCE_USERNAME: organization
+      SPRING_DATASOURCE_PASSWORD: organization
       GRPC_SERVER_PORT: 9091
     depends_on:
-      postgres:
+      organization-db:
         condition: service_healthy
     # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
 
@@ -75,12 +118,12 @@ services:
       dockerfile: initialization/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/initialization_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://initialization-db:5432/initialization_db
+      SPRING_DATASOURCE_USERNAME: initialization
+      SPRING_DATASOURCE_PASSWORD: initialization
       GRPC_SERVER_PORT: 9092
     depends_on:
-      postgres:
+      initialization-db:
         condition: service_healthy
     # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
 
@@ -90,7 +133,17 @@ services:
       dockerfile: api-gateway/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://auth:8080/realms/support-me
+      # Split on purpose: the browser (and the frontend's OIDC client) only ever reaches
+      # Keycloak via the host-published localhost:8081, so every real token's `iss` claim is
+      # "http://localhost:8081/realms/support-me" - issuer-uri must match that exactly or every
+      # request gets rejected with "The iss claim is not valid" (confirmed by a real failure).
+      # jwk-set-uri is fetched by api-gateway itself, though, which - being a *container* - can't
+      # resolve "localhost:8081" as the host's Keycloak; it must use the compose-network hostname
+      # instead. Spring Boot's resource-server autoconfig supports exactly this split: when both
+      # properties are set, jwk-set-uri governs key retrieval and issuer-uri (only) governs the
+      # `iss` validator - see OAuth2ResourceServerJwtConfiguration.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8081/realms/support-me
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth:8080/realms/support-me/protocol/openid-connect/certs
       SPRING_GRPC_CLIENT_CHANNELS_ORGANIZATION_ADDRESS: static://organization:9091
       SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS: static://initialization:9092
     ports:
@@ -100,4 +153,6 @@ services:
       - initialization
 
 volumes:
-  postgres_data:
+  organization_db_data:
+  initialization_db_data:
+  auth_db_data:

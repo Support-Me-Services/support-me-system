@@ -166,6 +166,9 @@ importers:
 
   packages/api-client:
     dependencies:
+      '@support-me/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.102.8(react@19.2.8)
@@ -176,9 +179,6 @@ importers:
         specifier: ^19.0.0
         version: 19.2.8
     devDependencies:
-      '@support-me/auth':
-        specifier: workspace:*
-        version: link:../auth
       '@support-me/config':
         specifier: workspace:*
         version: link:../config

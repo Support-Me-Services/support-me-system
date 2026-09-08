@@ -7,20 +7,221 @@ option java_multiple_files = true;
 
 import "google/protobuf/timestamp.proto";
 
-// Manages organization-level features: CMS, business card ("wizytówka"), recruitment,
-// shop, and fundraising. This is an example service shaping the contract only — full
-// business logic is out of scope for the skeleton.
+// Manages organization-level features: CMS, business card ("wizytowka"), recruitment, shop,
+// and fundraising.
+//
+// Authorization split (see ADR / SCRUM-183 Confluence doc for the full rationale):
+//  - Authentication and coarse-grained, role-based checks (the global Super Administrator
+//    role) are enforced by api-gateway, from the validated JWT, before a call ever reaches
+//    this service.
+//  - Fine-grained, resource-level checks (is the actor the IND owner? is the actor an
+//    ADMINISTRATOR member of this ORG?) are enforced HERE, because this service is the only
+//    owner of organization/membership data. Every mutating RPC therefore carries
+//    actor_user_id, resolved server-side by the gateway from the JWT `sub` claim - never
+//    supplied by the end user directly - and this service rejects the call with
+//    PERMISSION_DENIED if the actor lacks the required relationship to the resource.
 service OrganizationService {
+  // Creates an IND or ORG organization. Fails with ALREADY_EXISTS if the actor already owns
+  // a non-deleted IND organization.
+  rpc CreateOrganization(CreateOrganizationRequest) returns (CreateOrganizationResponse);
+
+  // Fetches an organization by id for an authenticated actor (owner or ORG administrator).
   rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+
+  // Lists every organization the actor owns or administers.
+  rpc ListMyOrganizations(ListMyOrganizationsRequest) returns (ListMyOrganizationsResponse);
+
+  // Updates the sanitized rich-text content of the public "about" page.
+  rpc UpdateAboutPage(UpdateAboutPageRequest) returns (UpdateAboutPageResponse);
+
+  // Guest-facing, unauthenticated lookup of the public "about" page by its URL slug(s).
+  rpc GetPublicAboutPage(GetPublicAboutPageRequest) returns (GetPublicAboutPageResponse);
+
+  // ORG only. Administrator flags the organization "to be deleted".
+  rpc RequestOrganizationDeletion(RequestOrganizationDeletionRequest) returns (RequestOrganizationDeletionResponse);
+
+  // ORG only. Administrator withdraws a pending deletion request.
+  rpc WithdrawOrganizationDeletion(WithdrawOrganizationDeletionRequest) returns (WithdrawOrganizationDeletionResponse);
+
+  // Super Administrator only (role checked by the gateway). Lists ORG organizations pending
+  // deletion, system-wide.
+  rpc ListOrganizationsPendingDeletion(ListOrganizationsPendingDeletionRequest) returns (ListOrganizationsPendingDeletionResponse);
+
+  // Super Administrator only. Finally executes a pending ORG deletion.
+  rpc ApproveOrganizationDeletion(ApproveOrganizationDeletionRequest) returns (ApproveOrganizationDeletionResponse);
+
+  // IND only, step 1 of 2. Owner starts the double-confirmation deletion flow; returns a
+  // short-lived confirmation token the client must echo back in step 2.
+  rpc StartIndividualOrganizationDeletion(StartIndividualOrganizationDeletionRequest) returns (StartIndividualOrganizationDeletionResponse);
+
+  // IND only, step 2 of 2. Owner confirms deletion with the token from step 1.
+  rpc ConfirmIndividualOrganizationDeletion(ConfirmIndividualOrganizationDeletionRequest) returns (ConfirmIndividualOrganizationDeletionResponse);
+}
+
+enum OrganizationType {
+  ORGANIZATION_TYPE_UNSPECIFIED = 0;
+  ORGANIZATION_TYPE_IND = 1;
+  ORGANIZATION_TYPE_ORG = 2;
+}
+
+enum OrganizationStatus {
+  ORGANIZATION_STATUS_UNSPECIFIED = 0;
+  ORGANIZATION_STATUS_ACTIVE = 1;
+  ORGANIZATION_STATUS_PENDING_DELETION = 2;
+  ORGANIZATION_STATUS_DELETED = 3;
+}
+
+// Full organization record, embedded in the per-RPC response envelopes below (kept as its own
+// message - rather than being an RPC response type itself - so it can be reused without
+// tripping buf's one-response-type-per-RPC lint rule).
+message Organization {
+  string id = 1;
+  OrganizationType type = 2;
+  OrganizationStatus status = 3;
+
+  // Display name. For ORG this is the organization's name; for IND this is the person's
+  // display name ("Imie Nazwisko").
+  string name = 4;
+
+  // IND only.
+  string first_name = 5;
+  string last_name = 6;
+
+  // ORG only.
+  string category = 7;
+  string category_slug = 8;
+
+  // IND: derived from last_name/first_name ("nazwisko-imie"). ORG: derived from name
+  // ("name-slug"), unique within category_slug.
+  string slug = 9;
+
+  // Sanitized HTML content of the "about" (wizytowka) page.
+  string about_content = 10;
+
+  string owner_user_id = 11;
+
+  // ORG deletion-request tracking; unset unless status is PENDING_DELETION.
+  string deletion_requested_by = 12;
+  google.protobuf.Timestamp deletion_requested_at = 13;
+
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
+
+message CreateOrganizationRequest {
+  string actor_user_id = 1;
+  OrganizationType type = 2;
+
+  // Required for ORG.
+  string name = 3;
+  string category = 4;
+
+  // Required for IND.
+  string first_name = 5;
+  string last_name = 6;
+}
+
+message CreateOrganizationResponse {
+  Organization organization = 1;
 }
 
 message GetOrganizationRequest {
-  string id = 1;
+  string actor_user_id = 1;
+  string id = 2;
 }
 
 message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+message ListMyOrganizationsRequest {
+  string actor_user_id = 1;
+}
+
+message ListMyOrganizationsResponse {
+  repeated Organization organizations = 1;
+}
+
+message UpdateAboutPageRequest {
+  string actor_user_id = 1;
+  string id = 2;
+  string about_content = 3;
+}
+
+message UpdateAboutPageResponse {
+  Organization organization = 1;
+}
+
+message GetPublicAboutPageRequest {
+  OrganizationType type = 1;
+
+  // IND: the {nazwisko-imie} path segment. ORG: the {name-slug} path segment.
+  string slug = 2;
+
+  // ORG only: the {category-slug} path segment.
+  string category_slug = 3;
+}
+
+// Deliberately narrower than Organization - this is the unauthenticated, guest-facing shape
+// and must never leak internal fields (owner id, deletion state, ...).
+message GetPublicAboutPageResponse {
   string id = 1;
-  string name = 2;
-  string description = 3;
-  google.protobuf.Timestamp created_at = 4;
+  OrganizationType type = 2;
+  string name = 3;
+  string about_content = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message RequestOrganizationDeletionRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message RequestOrganizationDeletionResponse {
+  Organization organization = 1;
+}
+
+message WithdrawOrganizationDeletionRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message WithdrawOrganizationDeletionResponse {
+  Organization organization = 1;
+}
+
+message ListOrganizationsPendingDeletionRequest {
+}
+
+message ListOrganizationsPendingDeletionResponse {
+  repeated Organization organizations = 1;
+}
+
+message ApproveOrganizationDeletionRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message ApproveOrganizationDeletionResponse {
+  Organization organization = 1;
+}
+
+message StartIndividualOrganizationDeletionRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message StartIndividualOrganizationDeletionResponse {
+  string confirmation_token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message ConfirmIndividualOrganizationDeletionRequest {
+  string actor_user_id = 1;
+  string id = 2;
+  string confirmation_token = 3;
+}
+
+message ConfirmIndividualOrganizationDeletionResponse {
+  Organization organization = 1;
 }

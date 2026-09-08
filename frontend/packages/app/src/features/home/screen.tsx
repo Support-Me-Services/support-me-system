@@ -2,6 +2,7 @@
 
 import React from "react";
 import { View, Text } from "react-native";
+import { Link } from "solito/link";
 import { Button } from "@support-me/ui";
 import { useAuth } from "@support-me/auth";
 
@@ -31,6 +32,13 @@ export function HomeScreen() {
         label={isAuthenticated ? "Log out" : "Log in"}
         onPress={isAuthenticated ? logout : login}
       />
+      {isAuthenticated ? (
+        <Link href="/organizations">
+          <Text className="font-sans text-[14px] font-semibold text-primary">
+            Moje organizacje →
+          </Text>
+        </Link>
+      ) : null}
     </View>
   );
 }

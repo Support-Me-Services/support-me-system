@@ -11,12 +11,12 @@
     "generate:api": "orval --config orval.config.ts"
   },
   "dependencies": {
+    "@support-me/auth": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "axios": "^1.7.9",
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@support-me/auth": "workspace:*",
     "@support-me/config": "workspace:*",
     "@types/react": "^19.0.1",
     "orval": "^7.3.0",

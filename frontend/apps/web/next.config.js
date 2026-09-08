@@ -27,6 +27,7 @@ const nextConfig = {
     "react-native",
     "react-native-web",
     "nativewind",
+    "react-native-css-interop",
     "solito",
     "@support-me/ui",
     "@support-me/app",

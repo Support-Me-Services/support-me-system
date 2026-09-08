@@ -104,7 +104,28 @@ all 5 tests passing (2 in `organization`, 2 in `initialization`, 1 in `api-gatew
 concurrently in use on the dev machine) confirmed this is necessary, and it's standard practice
 for integration tests regardless: never bind a hardcoded port in a test.
 
+## Verified end-to-end via Docker Compose
+
+`docker compose up -d --build` — all 5 containers (`postgres`, `auth`, `organization`,
+`initialization`, `api-gateway`) run successfully, and a full browser login/logout cycle against
+the `support-me` realm works (see the root `README.md`'s "Local auth setup"). Two real bugs
+surfaced only at this stage (never running the actual executable jars before):
+
+- **`no main manifest attribute, in app.jar`** — every service crash-looped. Root cause:
+  `spring-boot-maven-plugin`'s `repackage` goal isn't automatically bound to the `package` phase
+  unless a module inherits from `spring-boot-starter-parent` (which pre-declares that execution).
+  This reactor doesn't (Spring Boot is managed via BOM import under a custom parent instead), so
+  the execution had to be declared explicitly in the root `pom.xml`'s `pluginManagement` — without
+  it, `mvn package` silently produced a plain (non-executable) jar with no `Main-Class`.
+- `api-gateway`'s `/actuator/health` is unreachable from the Windows host on port 8080
+  specifically (empty reply / connection reset), while the exact same request succeeds from
+  *inside* the Docker network (verified with a `curlimages/curl` container sharing its network
+  namespace) and Keycloak's own host-published port 8081 works fine from the host. This looks like
+  a host-specific Docker Desktop/WSL2 port-forwarding quirk isolated to this one port on this dev
+  machine, not an application bug — but flagging it since it'll block testing api-gateway's REST
+  endpoints directly from the host until resolved (doesn't block browser-based login/logout, which
+  only talks to Keycloak on 8081).
+
 ## Notes / TODOs
 
-- Create the actual `support-me` Keycloak realm; `issuer-uri` in `api-gateway`'s
-  `application.yml` / the root `docker-compose.yml` env is currently a placeholder.
+- Investigate the `api-gateway` port 8080 host-forwarding issue above.

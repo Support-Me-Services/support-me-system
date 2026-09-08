@@ -7,6 +7,14 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "preserve",
+    // Required for NativeWind on Next.js: routes className through NativeWind's
+    // own JSX runtime (nativewind/jsx-runtime) instead of React's default, which
+    // is what actually makes `className` do anything on RN components in the
+    // web build - without it, react-native-web's View/Text/Pressable just
+    // silently ignore className (confirmed: page rendered with none of our
+    // Tailwind classes applied, only react-native-web's own atomic CSS).
+    // Next.js's SWC compiler reads this directly, no babel.config.js needed.
+    "jsxImportSource": "nativewind",
     "allowJs": true,
     "noEmit": true,
     "incremental": true,

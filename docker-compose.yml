@@ -3,8 +3,11 @@
 # LOCAL DEV ONLY. Production runs on Kubernetes per the architecture decision — this compose
 # file is not used to deploy anywhere else; it exists purely to let you run the full backend
 # stack (Postgres + Keycloak + the three Spring Boot services) on a laptop.
-
-name: support-me-system
+#
+# No top-level `name:` here (Compose Spec added it in later CLI versions) -
+# a dev machine running Docker Compose v2.2.3 rejected it as an unknown
+# property. Project name defaults to the directory name instead, which is
+# already "support-me-system".
 
 services:
 
@@ -28,7 +31,12 @@ services:
       timeout: 5s
       retries: 10
 
-  keycloak:
+  # Keycloak, addressed as "auth" on the compose network and at
+  # auth.please-support-me.com in production (see root README) - use "auth",
+  # never "keycloak", for any hostname reference (env vars/URLs). The image,
+  # env var *names* (KEYCLOAK_ADMIN etc., required by Keycloak itself) and the
+  # keycloak_db database name are unaffected - only the network hostname.
+  auth:
     image: quay.io/keycloak/keycloak:26.0
     restart: unless-stopped
     command: start-dev
@@ -82,7 +90,7 @@ services:
       dockerfile: api-gateway/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/support-me
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://auth:8080/realms/support-me
       SPRING_GRPC_CLIENT_CHANNELS_ORGANIZATION_ADDRESS: static://organization:9091
       SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS: static://initialization:9092
     ports:

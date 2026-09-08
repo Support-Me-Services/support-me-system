@@ -36,6 +36,27 @@ This was a deliberate choice: the system has no public pages that need SEO
 file-based router — which is what lets Solito share routing/navigation code
 with `apps/mobile`'s Expo Router — not for SSR.
 
+### NativeWind + Next.js: three required pieces, easy to miss one
+
+Confirmed by an actual broken render (page loaded, but every Tailwind class was
+silently dropped — react-native-web only applied its own generated atomic
+classes, none of ours). NativeWind on Next.js needs **all three** of these, or
+`className` is a no-op on RN components:
+
+1. `apps/web/tsconfig.json` (via `packages/config/tsconfig/nextjs.json`) —
+   `compilerOptions.jsxImportSource: "nativewind"`. This is the actual switch:
+   it routes JSX through NativeWind's own runtime instead of React's default,
+   which is what makes `className` do anything at all. Next's SWC compiler
+   reads this directly — no `babel.config.js` needed.
+2. `apps/web/next.config.js` — `transpilePackages` must include
+   `"react-native-css-interop"` (NativeWind's runtime dependency), not just
+   `"nativewind"` itself.
+3. `apps/web/tailwind.config.js` — `presets` must include
+   `require("nativewind/preset")`, not just this repo's own shared preset.
+
+If you add another Next.js app later, or a screen renders unstyled again,
+check these three first.
+
 Two consequences to keep in mind when writing shared code in `packages/*`:
 - Prefer `Image` from `react-native` (renders as a plain `<img>` via
   react-native-web) over `next/image` in any component meant to run on both

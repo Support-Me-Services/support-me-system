@@ -33,6 +33,11 @@ const oidcProviderSettings: AuthProviderProps = {
   authority: getIssuerUrl(oidcConfig),
   client_id: oidcConfig.clientId,
   redirect_uri: oidcConfig.redirectUri,
+  // Without this, oidc.signoutRedirect() sends the browser to Keycloak's
+  // end-session endpoint with no way back — the user is logged out but
+  // stranded there instead of returning to the app. Reuses redirectUri since
+  // this is a single-page app with no dedicated logout-landing route.
+  post_logout_redirect_uri: oidcConfig.redirectUri,
   scope: oidcConfig.scope,
   // TODO: tune once Keycloak client is finalized (silent renew, post-logout
   // redirect, response_mode, etc.)

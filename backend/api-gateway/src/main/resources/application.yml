@@ -11,8 +11,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # TODO: replace with the real Keycloak realm issuer URI once the realm is created,
-          # e.g. http://localhost:8081/realms/support-me
+          # Local dev default (overridden by docker-compose's env var, which
+          # points at the "auth" service hostname on the compose network
+          # instead). Production issuer is https://auth.please-support-me.com/realms/support-me.
           issuer-uri: http://localhost:8081/realms/support-me
 
   # Spring gRPC client channel configuration (blocking stubs, plaintext for local dev only -

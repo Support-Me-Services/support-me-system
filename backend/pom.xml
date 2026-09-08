@@ -165,6 +165,22 @@
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
           <version>${spring-boot.version}</version>
+          <!-- Binding `repackage` to the `package` phase is normally automatic
+               when a module inherits from spring-boot-starter-parent, which
+               pre-declares this execution. We don't (this reactor manages
+               Spring Boot via BOM import instead, for a custom parent), so it
+               must be declared explicitly - confirmed by a real failure:
+               without it, `package` only ran the plain maven-jar-plugin,
+               producing a jar with no Main-Class manifest entry, and every
+               service crash-looped in Docker with "no main manifest
+               attribute, in app.jar". -->
+          <executions>
+            <execution>
+              <goals>
+                <goal>repackage</goal>
+              </goals>
+            </execution>
+          </executions>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>

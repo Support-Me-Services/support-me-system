@@ -1,0 +1,18 @@
+# See ../api-gateway/healthcheckpolicy.yaml for why this is needed - same "/" default health
+# check issue, here against Keycloak's root path instead of api-gateway's.
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: auth
+  namespace: support-me
+spec:
+  default:
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 8080
+        requestPath: /realms/master
+  targetRef:
+    group: ""
+    kind: Service
+    name: auth

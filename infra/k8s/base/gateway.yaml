@@ -1,0 +1,44 @@
+# Replaces the classic networking.k8s.io/Ingress approach (see git history for
+# ingress.yaml/managed-certificate.yaml/frontendconfig.yaml/ingressclass.yaml, removed) -
+# confirmed by a real failure: this cluster's GKE version has no ingress-gce controller running
+# at all
+# (`kubectl get pods -A` had nothing matching, `kubectl get ingressclass` was empty even after we
+# created one by hand - zero forwarding rules/backend services were ever created, 50+ minutes
+# after apply). Only Gateway API GatewayClasses are registered on this cluster
+# (gke-l7-global-external-managed and friends) - Ingress-GCE is gone.
+#
+# gke-l7-global-external-managed = global external Application Load Balancer, matching the
+# global static IP already reserved by infra/terraform/modules/edge.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: support-me-gateway
+  namespace: support-me
+spec:
+  gatewayClassName: gke-l7-global-external-managed
+  addresses:
+    - type: NamedAddress
+      value: support-me-prod-ingress-ip
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        # GKE-specific bridge to Certificate Manager (confirmed by a real failure: a bare
+        # Gateway-level `networking.gke.io/certmap` annotation isn't read here - the upstream
+        # Gateway API schema requires `certificateRefs` or `options` on the listener itself, and
+        # GKE reads the cert map reference from `options`). The certificate + per-hostname map
+        # entries are created out-of-band (gcloud certificate-manager certificates/maps/maps
+        # entries create - see infra/README.md), not via Terraform yet.
+        options:
+          networking.gke.io/certificate-map: support-me-cert-map
+      allowedRoutes:
+        namespaces:
+          from: Same

@@ -35,6 +35,7 @@ resource "google_project_service" "required" {
     "servicenetworking.googleapis.com",
     "storagetransfer.googleapis.com",
     "artifactregistry.googleapis.com",
+    "certificatemanager.googleapis.com",
   ])
   project            = var.project_id
   service            = each.value

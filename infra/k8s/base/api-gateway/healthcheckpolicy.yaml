@@ -1,0 +1,21 @@
+# GKE Gateway API's auto-generated backend health check defaults to path "/" regardless of the
+# container's own readinessProbe - confirmed by a real failure: api-gateway's "/" requires auth
+# (Spring Security's anyRequest().authenticated()), so GCP's health check got 401 and marked
+# every backend UNHEALTHY, serving 503 for the whole hostname. This HealthCheckPolicy points the
+# LB's check at the same path the in-cluster readinessProbe already uses.
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: api-gateway
+  namespace: support-me
+spec:
+  default:
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 8080
+        requestPath: /actuator/health/readiness
+  targetRef:
+    group: ""
+    kind: Service
+    name: api-gateway

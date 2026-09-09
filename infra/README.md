@@ -12,7 +12,7 @@ infra/
     environments/prod/    The actual environment: GKE, Cloud SQL, networking, storage, secrets.
     modules/               Reusable building blocks used by environments/prod.
   k8s/
-    base/                  Namespace, Deployments/Services for all 4 apps, Ingress, TLS cert.
+    base/                  Namespace, Deployments/Services for all 4 apps, Gateway API routing.
     overlays/prod/         Points base's images at real Artifact Registry tags for a given deploy.
   scripts/
     render-k8s-manifests.sh   kustomize build + envsubst Terraform outputs into the manifests.
@@ -59,11 +59,33 @@ origin added.
    pushed.
 6. Get cluster credentials: `gcloud container clusters get-credentials <cluster_name> --region
    <region> --project <project_id>` (`cluster_name`/`region` from `terraform output`).
-7. `./scripts/render-k8s-manifests.sh | kubectl apply -f -`
-8. Once DNS + the ManagedCertificate provision (can take up to ~60 min), do the Keycloak realm
-   setup from the root `README.md`'s "Local auth setup" section against `auth.please-support-me.pl`
-   instead of `localhost:8081`, using `https://please-support-me.pl/*` for the `support-me-web`
-   client's `redirectUris`/`webOrigins` instead of the `.com` ones written there.
+7. **TLS certificate** - this cluster's GKE version has no classic Ingress-GCE controller at all
+   (confirmed by a real failure: an `Ingress` + `ManagedCertificate` sat for 50+ minutes with zero
+   events and zero created load-balancer resources - only Gateway API `GatewayClass`es are
+   registered). `k8s/base/gateway.yaml`'s HTTPS listener expects a Certificate Manager
+   certificate map already set up - not yet expressed in Terraform, so create it by hand once per
+   environment (DNS for every hostname must already point at the reserved IP before this can
+   activate):
+   ```bash
+   gcloud services enable certificatemanager.googleapis.com --project=<project_id>
+   gcloud certificate-manager certificates create support-me-cert \
+     --domains="please-support-me.pl,api.please-support-me.pl,auth.please-support-me.pl" \
+     --project=<project_id>
+   gcloud certificate-manager maps create support-me-cert-map --project=<project_id>
+   for host in please-support-me.pl api.please-support-me.pl auth.please-support-me.pl; do
+     gcloud certificate-manager maps entries create "$(echo "$host" | tr '.' '-')" \
+       --map=support-me-cert-map --certificates=support-me-cert \
+       --hostname="$host" --project=<project_id>
+   done
+   ```
+   Provisioning (`gcloud certificate-manager certificates describe support-me-cert
+   --format="value(managed.state)"` reaching `ACTIVE`) can take anywhere from a few minutes to
+   ~an hour on first issuance.
+8. `./scripts/render-k8s-manifests.sh | kubectl apply -f -`
+9. Once the certificate is `ACTIVE` and DNS has propagated, do the Keycloak realm setup from the
+   root `README.md`'s "Local auth setup" section against `auth.please-support-me.pl` instead of
+   `localhost:8081`, using `https://please-support-me.pl/*` for the `support-me-web` client's
+   `redirectUris`/`webOrigins` instead of the `.com` ones written there.
 
 ## Cutting over to please-support-me.com later
 
@@ -73,9 +95,12 @@ When the team is ready:
    the value everywhere below; for both live at once, add `.com` alongside instead of replacing.
 2. `infra/terraform/environments/prod/terraform.tfvars`: update `domains` (and `primary_domain`
    if api/auth move to `.com`), `terraform apply`.
-3. `infra/k8s/base/ingress.yaml`: add/update the `please-support-me.com` host rule(s).
-4. `infra/k8s/base/managed-certificate.yaml`: add/update `please-support-me.com` (and
-   `api.`/`auth.` if those move) in `spec.domains`.
+3. `infra/k8s/base/httproutes.yaml`: add a `please-support-me.com` entry to the `web` HTTPRoute's
+   `hostnames` (and to `api-gateway`/`auth`'s if those move).
+4. Certificate Manager: recreate `support-me-cert` with `please-support-me.com` added to
+   `--domains` (Certificate Manager certs are immutable once created - delete and recreate, or
+   add a second certificate to the same map), and add matching `maps entries` for the new
+   hostname(s) - see step 7 of the first-time setup above for the exact commands.
 5. If api/auth move to `.com`: update `infra/k8s/base/auth/deployment.yaml`'s `KC_HOSTNAME` and
    `infra/k8s/base/api-gateway/deployment.yaml`'s issuer-uri, and rebuild the `web` image with
    `NEXT_PUBLIC_API_BASE_URL`/`NEXT_PUBLIC_KEYCLOAK_URL` pointed at the new hostnames (they're
@@ -109,4 +134,20 @@ version bump, backfill).
   the original draft: the registered CSI driver name is **`secrets-store-gke.csi.k8s.io`**, not
   the generic community driver's `secrets-store.csi.k8s.io` - already fixed in every
   `k8s/base/*/deployment.yaml` volume spec. If this ever regresses, `kubectl get csidrivers`
-  shows the driver actually registered on the cluster.
+  shows the driver actually registered on the cluster. Its "sync as Kubernetes Secret" feature
+  also needs `k8s/base/csi-secrets-store-rbac.yaml` (a ClusterRole/ClusterRoleBinding) - without
+  it, the driver's own ServiceAccount can't create the synced Secret objects and every DB
+  password mount times out.
+- **Gateway API, not Ingress**: this GKE version has no ingress-gce controller at all - routing
+  is `k8s/base/gateway.yaml` (a `Gateway`, class `gke-l7-global-external-managed`) +
+  `k8s/base/httproutes.yaml`, not a classic `Ingress`. Two gotchas hit during the first real
+  deploy, both already fixed here: (1) the auto-generated backend health check defaults to path
+  `/`, which 401s on api-gateway and doesn't work on Keycloak's root either - see
+  `k8s/base/api-gateway/healthcheckpolicy.yaml` and `k8s/base/auth/healthcheckpolicy.yaml`
+  (`HealthCheckPolicy` CRD) for the fix; (2) TLS termination needs a Certificate Manager
+  certificate map referenced via the HTTPS listener's `tls.options["networking.gke.io/certificate-map"]`
+  - a bare `networking.gke.io/certmap` annotation on the Gateway itself (the pattern used with
+  classic Ingress) is not read by this controller.
+- **Certificate Manager isn't in Terraform yet**: `support-me-cert` / `support-me-cert-map` /
+  its per-hostname map entries are created by hand (step 7 of first-time setup) - a
+  `google_certificate_manager_*` Terraform resource set would remove that manual step.

@@ -27,6 +27,8 @@ final class OrganizationDtoMapper {
                 blankToNull(organization.getCategorySlug()),
                 organization.getSlug(),
                 organization.getAboutContent(),
+                blankToNull(organization.getPhoneNumber()),
+                blankToNull(organization.getRole()),
                 organization.getOwnerUserId(),
                 blankToNull(organization.getDeletionRequestedBy()),
                 organization.hasDeletionRequestedAt() ? toInstant(organization.getDeletionRequestedAt()) : null,

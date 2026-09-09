@@ -11,4 +11,7 @@ export type { OrganizationDetailScreenProps } from "./features/organizations/det
 export { PublicAboutScreen } from "./features/organizations/public-about-screen";
 export type { PublicAboutScreenProps } from "./features/organizations/public-about-screen";
 
+export { AccountSettingsScreen } from "./features/account/account-settings-screen";
+export type { AccountSettingsScreenProps } from "./features/account/account-settings-screen";
+
 export { PendingDeletionsScreen } from "./features/admin/pending-deletions-screen";

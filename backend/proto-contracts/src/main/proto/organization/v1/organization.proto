@@ -34,6 +34,9 @@ service OrganizationService {
   // Updates the sanitized rich-text content of the public "about" page.
   rpc UpdateAboutPage(UpdateAboutPageRequest) returns (UpdateAboutPageResponse);
 
+  // Updates the organization's contact info ("Informacja kontaktowa" panel).
+  rpc UpdateContactInfo(UpdateContactInfoRequest) returns (UpdateContactInfoResponse);
+
   // Guest-facing, unauthenticated lookup of the public "about" page by its URL slug(s).
   rpc GetPublicAboutPage(GetPublicAboutPageRequest) returns (GetPublicAboutPageResponse);
 
@@ -106,6 +109,12 @@ message Organization {
 
   google.protobuf.Timestamp created_at = 14;
   google.protobuf.Timestamp updated_at = 15;
+
+  // Contact info panel ("Informacja kontaktowa" in the frontend org-detail screen).
+  string phone_number = 16;
+
+  // Church role shown on the "Wizytówka" page (e.g. Proboszcz, Wikariusz, Kapelan, Diakon).
+  string role = 17;
 }
 
 message CreateOrganizationRequest {
@@ -149,6 +158,25 @@ message UpdateAboutPageRequest {
 }
 
 message UpdateAboutPageResponse {
+  Organization organization = 1;
+}
+
+message UpdateContactInfoRequest {
+  string actor_user_id = 1;
+  string id = 2;
+  string phone_number = 3;
+
+  // ORG only.
+  string name = 4;
+  // IND only.
+  string first_name = 5;
+  string last_name = 6;
+
+  // Church role shown on the "Wizytówka" page (e.g. Proboszcz, Wikariusz, Kapelan, Diakon).
+  string role = 7;
+}
+
+message UpdateContactInfoResponse {
   Organization organization = 1;
 }
 

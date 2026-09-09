@@ -23,6 +23,8 @@ import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionRe
 import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionResponse;
 import com.supportme.proto.organization.v1.UpdateAboutPageRequest;
 import com.supportme.proto.organization.v1.UpdateAboutPageResponse;
+import com.supportme.proto.organization.v1.UpdateContactInfoRequest;
+import com.supportme.proto.organization.v1.UpdateContactInfoResponse;
 import com.supportme.proto.organization.v1.WithdrawOrganizationDeletionRequest;
 import com.supportme.proto.organization.v1.WithdrawOrganizationDeletionResponse;
 import io.grpc.stub.StreamObserver;
@@ -95,6 +97,18 @@ public class OrganizationGrpcService extends OrganizationServiceGrpc.Organizatio
             UUID id = parseUuid(request.getId(), "id");
             Organization organization = organizationService.updateAboutPage(actorUserId, id, request.getAboutContent());
             return UpdateAboutPageResponse.newBuilder().setOrganization(OrganizationMapper.toProto(organization)).build();
+        });
+    }
+
+    @Override
+    public void updateContactInfo(UpdateContactInfoRequest request, StreamObserver<UpdateContactInfoResponse> responseObserver) {
+        handle(responseObserver, () -> {
+            UUID actorUserId = parseUuid(request.getActorUserId(), "actor_user_id");
+            UUID id = parseUuid(request.getId(), "id");
+            Organization organization = organizationService.updateContactInfo(actorUserId, id,
+                    request.getName(), request.getFirstName(), request.getLastName(), request.getPhoneNumber(),
+                    request.getRole());
+            return UpdateContactInfoResponse.newBuilder().setOrganization(OrganizationMapper.toProto(organization)).build();
         });
     }
 

@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-01-add-organization-phone-number
+      author: supportme
+      comment: >
+        Contact phone number for the organization's "Informacja kontaktowa" panel
+        (frontend org-detail screen).
+      changes:
+        - addColumn:
+            tableName: organization
+            columns:
+              - column:
+                  name: phone_number
+                  type: varchar(30)

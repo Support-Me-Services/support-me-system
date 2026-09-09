@@ -17,6 +17,9 @@ public record OrganizationResponseDto(
         @Schema(description = "The {nazwisko-imie} or {name-slug} URL path segment.")
         String slug,
         String aboutContent,
+        String phoneNumber,
+        @Schema(description = "Church role shown on the \"Wizytówka\" page (e.g. Proboszcz, Wikariusz, Kapelan, Diakon).")
+        String role,
         String ownerUserId,
         String deletionRequestedBy,
         Instant deletionRequestedAt,

@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-01-add-organization-role
+      author: supportme
+      comment: >
+        Church role shown on the "Wizytówka" (about) page alongside status - e.g. Proboszcz,
+        Wikariusz, Kapelan, Diakon. Free-text column; the fixed option list is enforced in the
+        frontend picker only, not at the database level.
+      changes:
+        - addColumn:
+            tableName: organization
+            columns:
+              - column:
+                  name: role
+                  type: varchar(50)

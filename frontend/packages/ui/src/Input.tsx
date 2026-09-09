@@ -20,6 +20,8 @@ export interface InputProps
   required?: boolean;
   /** Validation error message; switches the field into its "Error" visual state. */
   error?: string;
+  /** Renders the entered text bold/serif, e.g. for a title-like field ("Tytuł"). */
+  bold?: boolean;
 }
 
 export function Input({
@@ -27,6 +29,7 @@ export function Input({
   required = false,
   error,
   multiline = false,
+  bold = false,
   ...inputProps
 }: InputProps) {
   const isError = Boolean(error);
@@ -42,9 +45,11 @@ export function Input({
         multiline={multiline}
         accessibilityLabel={label}
         placeholderTextColor="#5b6678"
-        className={`w-full rounded-card border bg-background px-[14px] py-[12px] font-sans text-[16px] text-foreground ${
-          multiline ? "min-h-[120px]" : "h-[46px]"
-        } ${isError ? "border-danger" : "border-line focus:border-primary"}`}
+        className={`w-full rounded-card border bg-background px-[14px] py-[12px] text-[16px] text-foreground ${
+          bold ? "font-serif font-bold" : "font-sans"
+        } ${multiline ? "min-h-[120px]" : "h-[46px]"} ${
+          isError ? "border-danger" : "border-line focus:border-primary"
+        }`}
       />
       {isError ? (
         <Text className="font-sans text-[13px] text-danger">{error}</Text>

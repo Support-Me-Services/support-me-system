@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 
-export type BadgeVariant = "neutral" | "success" | "warning" | "danger";
+export type BadgeVariant = "neutral" | "success" | "warning" | "danger" | "accent";
 
 export interface BadgeProps {
   label: string;
@@ -13,6 +13,7 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   success: "bg-primary/10",
   warning: "bg-[#fff0b3]",
   danger: "bg-danger/10",
+  accent: "bg-accent/10",
 };
 
 const TEXT_CLASSES: Record<BadgeVariant, string> = {
@@ -20,6 +21,7 @@ const TEXT_CLASSES: Record<BadgeVariant, string> = {
   success: "text-primary",
   warning: "text-[#946200]",
   danger: "text-danger",
+  accent: "text-accent",
 };
 
 /** Small rounded status label - e.g. organization status (ACTIVE/PENDING_DELETION/DELETED). */

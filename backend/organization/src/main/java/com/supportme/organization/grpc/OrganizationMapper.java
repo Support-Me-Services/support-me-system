@@ -26,6 +26,8 @@ final class OrganizationMapper {
                         .setCategorySlug(nullToEmpty(organization.getCategorySlug()))
                         .setSlug(nullToEmpty(organization.getSlug()))
                         .setAboutContent(nullToEmpty(organization.getAboutContent()))
+                        .setPhoneNumber(nullToEmpty(organization.getPhoneNumber()))
+                        .setRole(nullToEmpty(organization.getRole()))
                         .setOwnerUserId(organization.getOwnerUserId().toString())
                         .setCreatedAt(toTimestamp(organization.getCreatedAt()))
                         .setUpdatedAt(toTimestamp(organization.getUpdatedAt()));

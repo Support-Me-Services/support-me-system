@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "solito/navigation";
 import { useCreate, CreateOrganizationRequestDtoType } from "@support-me/api-client";
-import { Card, Input, Spinner } from "@support-me/ui";
+import { Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 
 type OrgType = "IND" | "ORG";
@@ -52,13 +52,13 @@ export function CreateOrganizationScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="mx-auto w-full max-w-[620px] gap-6 p-6">
-        <Text className="font-serif text-[28px] font-bold text-foreground">
+    <View className="flex-1 bg-band">
+      <View className="mx-auto w-full max-w-[700px] gap-5 p-6 py-12">
+        <Text className="font-serif text-[32px] font-bold text-foreground">
           Nowa organizacja
         </Text>
 
-        <Card className="gap-4">
+        <View className="w-full gap-4 rounded-card-lg bg-background p-7 shadow-sm">
           <Text className="font-sans text-[14px] font-semibold text-foreground">Typ organizacji</Text>
           <View className="flex-row gap-3">
             {TYPE_OPTIONS.map((option) => {
@@ -68,11 +68,11 @@ export function CreateOrganizationScreen() {
                   key={option.value}
                   onPress={() => setType(option.value)}
                   className={`flex-1 gap-1 rounded-card border p-4 ${
-                    selected ? "border-primary bg-primary/5" : "border-line bg-background"
+                    selected ? "border-accent bg-accent/5" : "border-line bg-background"
                   }`}
                 >
                   <Text
-                    className={`font-sans text-[15px] font-bold ${selected ? "text-primary" : "text-foreground"}`}
+                    className={`font-sans text-[15px] font-bold ${selected ? "text-accent" : "text-foreground"}`}
                   >
                     {option.label}
                   </Text>
@@ -111,15 +111,15 @@ export function CreateOrganizationScreen() {
           <Pressable
             onPress={handleSubmit}
             disabled={!canSubmit || isPending}
-            className={`items-center justify-center rounded-pill bg-primary px-6 py-4 ${
+            className={`items-center justify-center rounded-pill bg-accent px-6 py-4 ${
               !canSubmit || isPending ? "opacity-50" : ""
             }`}
           >
             {isPending ? <Spinner /> : (
-              <Text className="font-sans text-base font-semibold text-primary-foreground">Utwórz organizację</Text>
+              <Text className="font-sans text-base font-semibold text-accent-foreground">Utwórz organizację</Text>
             )}
           </Pressable>
-        </Card>
+        </View>
       </View>
     </View>
   );

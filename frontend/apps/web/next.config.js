@@ -44,6 +44,25 @@ const nextConfig = {
     "@support-me/auth",
   ],
 
+  // Next's default response header for this static-shell page is `Cache-Control:
+  // s-maxage=31536000` with no browser-facing `max-age` - fine for a CDN that revalidates
+  // on deploy, but nothing sits between users and this server that does that. Every route
+  // is client-rendered (see the `output: "standalone"` note above), so there's nothing
+  // gained by letting the HTML shell get cached at all - and a cached shell references
+  // hashed JS chunk filenames from the build that produced it, which stop existing the
+  // moment the next deploy prunes old chunks. Diagnosed from a real incident: a returning
+  // visitor's login button silently did nothing because their cached shell's JS chunk had
+  // been replaced by the next deploy. `_next/static/*` assets are exempted since those are
+  // content-hashed and genuinely safe to cache forever.
+  async headers() {
+    return [
+      {
+        source: "/((?!_next/static).*)",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+    ];
+  },
+
   webpack: (config) => {
     // Standard Solito/react-native-web pattern: alias `react-native`
     // imports to `react-native-web` for the web bundle, and prefer

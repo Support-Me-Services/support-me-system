@@ -1,0 +1,210 @@
+# Production deploy pipeline: merging main -> release is a manual/reviewed step (a normal PR),
+# but pushing a tag (v1.2.3) on top of that is what actually ships it - this workflow triggers
+# purely on the tag, not on any particular branch, so `git tag vX.Y.Z && git push origin vX.Y.Z`
+# from `release` is the entire "deploy to prod" action.
+#
+# Mirrors, step for step, the manual process this pipeline replaces (see infra/README.md) -
+# terraform apply, build+push 4 images (generating the frontend's API client from a live
+# api-gateway first), kubectl apply, smoke test.
+name: deploy-prod
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+env:
+  PROJECT_ID: support-me-production
+  REGION: europe-central2
+  REGISTRY: europe-central2-docker.pkg.dev/support-me-production/support-me-system
+  CLUSTER_NAME: support-me-prod-cluster
+
+permissions:
+  contents: read
+  id-token: write # required by google-github-actions/auth's Workload Identity Federation exchange
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    outputs:
+      ingress_ip_name: ${{ steps.tf-outputs.outputs.ingress_ip_name }}
+      project_number: ${{ steps.tf-outputs.outputs.project_number }}
+      workload_service_account_email: ${{ steps.tf-outputs.outputs.workload_service_account_email }}
+      organization_db_private_ip: ${{ steps.tf-outputs.outputs.organization_db_private_ip }}
+      initialization_db_private_ip: ${{ steps.tf-outputs.outputs.initialization_db_private_ip }}
+      auth_db_private_ip: ${{ steps.tf-outputs.outputs.auth_db_private_ip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA_EMAIL }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.1"
+
+      - name: terraform init
+        working-directory: infra/terraform/environments/prod
+        run: terraform init
+
+      - name: terraform apply
+        working-directory: infra/terraform/environments/prod
+        # Runs unattended on every tag, no manual approval gate - a deliberate choice for this
+        # project's current size/stage (documented in infra/README.md's CI/CD section along with
+        # the tradeoff), not something to copy uncritically into a larger project.
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${{ env.PROJECT_ID }}" \
+            -var="region=${{ env.REGION }}"
+
+      - id: tf-outputs
+        working-directory: infra/terraform/environments/prod
+        run: |
+          {
+            echo "ingress_ip_name=$(terraform output -raw ingress_ip_name)"
+            echo "project_number=$(terraform output -raw project_number)"
+            echo "workload_service_account_email=$(terraform output -raw workload_service_account_email)"
+            echo "organization_db_private_ip=$(terraform output -raw organization_db_private_ip)"
+            echo "initialization_db_private_ip=$(terraform output -raw initialization_db_private_ip)"
+            echo "auth_db_private_ip=$(terraform output -raw auth_db_private_ip)"
+          } >> "$GITHUB_OUTPUT"
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      # Pinned so `docker compose`'s auto-generated image names (support-me-system-<service>)
+      # are predictable regardless of the checkout directory name.
+      COMPOSE_PROJECT_NAME: support-me-system
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # frontend/packages/api-client/src/generated is gitignored (see orval.config.ts) - it has
+      # to be regenerated from a live api-gateway's OpenAPI spec before `next build` can even
+      # compile, since packages/api-client/src/index.ts imports from it. Building via this
+      # repo's own docker-compose.yml (the same file used for local dev) rather than three
+      # separate `docker build` calls means the backend images pushed below are guaranteed to be
+      # bit-for-bit what actually served the spec, and there's only one build path to keep
+      # working.
+      - name: Build and start the backend stack
+        run: docker compose up -d --build organization-db initialization-db auth-db auth organization initialization api-gateway
+
+      - name: Wait for api-gateway to serve its OpenAPI spec
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api-docs -o backend/api-gateway-openapi.json; then
+              echo "Got OpenAPI spec"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::api-gateway never served /api-docs within 150s"
+          docker compose logs api-gateway organization initialization
+          exit 1
+
+      - name: Stop backend stack
+        if: always()
+        run: docker compose down -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend deps and generate API client
+        working-directory: frontend
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run generate:api
+
+      - name: Build web image
+        working-directory: frontend
+        run: |
+          docker build -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.please-support-me.pl \
+            --build-arg NEXT_PUBLIC_KEYCLOAK_URL=https://auth.please-support-me.pl \
+            --build-arg NEXT_PUBLIC_KEYCLOAK_REALM=support-me \
+            --build-arg NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=support-me-web \
+            --build-arg NEXT_PUBLIC_KEYCLOAK_REDIRECT_URI=https://please-support-me.pl/ \
+            --build-arg NEXT_PUBLIC_KEYCLOAK_SCOPE="openid profile email" \
+            -t support-me-system-web .
+
+      - name: Tag and push all four images
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          for svc in organization initialization api-gateway web; do
+            docker tag "support-me-system-$svc" "${{ env.REGISTRY }}/$svc:$TAG"
+            docker push "${{ env.REGISTRY }}/$svc:$TAG"
+          done
+
+  deploy:
+    needs: [terraform, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          location: ${{ env.REGION }}
+
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Point overlay at this release's images
+        working-directory: infra/k8s/overlays/prod
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          for svc in api-gateway organization initialization web; do
+            kustomize edit set image "$svc=${{ env.REGISTRY }}/$svc:$TAG"
+          done
+
+      - name: Render and apply manifests
+        env:
+          GCP_PROJECT_NUMBER: ${{ needs.terraform.outputs.project_number }}
+          WORKLOAD_GSA_EMAIL: ${{ needs.terraform.outputs.workload_service_account_email }}
+          ORGANIZATION_DB_HOST: ${{ needs.terraform.outputs.organization_db_private_ip }}
+          INITIALIZATION_DB_HOST: ${{ needs.terraform.outputs.initialization_db_private_ip }}
+          AUTH_DB_HOST: ${{ needs.terraform.outputs.auth_db_private_ip }}
+          INGRESS_IP_NAME: ${{ needs.terraform.outputs.ingress_ip_name }}
+        run: kubectl kustomize infra/k8s/overlays/prod | envsubst | kubectl apply -f -
+
+      - name: Wait for rollouts
+        run: |
+          for d in api-gateway organization initialization auth web; do
+            kubectl rollout status "deployment/$d" -n support-me --timeout=5m
+          done
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all three hostnames
+        run: |
+          set -e
+          for url in https://please-support-me.pl/ \
+                     https://api.please-support-me.pl/actuator/health/readiness \
+                     https://auth.please-support-me.pl/realms/support-me; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url")
+            echo "$url -> $code"
+            [ "$code" = "200" ] || { echo "::error::$url returned $code, expected 200"; exit 1; }
+          done

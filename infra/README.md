@@ -110,6 +110,35 @@ When the team is ready:
 7. DNS + Keycloak client `redirectUris`/`webOrigins`, same as the first-time setup above but for
    `.com`.
 
+## CI/CD (`.github/workflows/deploy-prod.yml`)
+
+`main` -> `release` is a normal reviewed PR merge; pushing a tag (`v1.2.3`) on `release` is what
+actually ships it. The tag push triggers three jobs in order: `terraform` (apply, unattended -
+see the tradeoff note in the workflow file), `build-and-push` (builds the OpenAPI spec off a
+real `docker compose` backend stack, same as the "Build & push images" step below, then builds
+and pushes all 4 images tagged with the git tag), `deploy` (kustomize + envsubst + `kubectl
+apply`, same as `render-k8s-manifests.sh`), then `smoke-test` (curls all three hostnames,
+expects 200).
+
+**One-time setup**, after applying `infra/terraform/bootstrap`'s Workload Identity Federation
+resources (the `google_iam_workload_identity_pool`/`_provider`/`github_actions_deployer` service
+account - already in that module):
+
+1. `terraform output github_actions_workload_identity_provider` and `terraform output
+   github_actions_deployer_email` (from `infra/terraform/bootstrap`).
+2. Add both as **GitHub Actions repository secrets**: `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+   `GCP_DEPLOYER_SA_EMAIL`.
+
+No JSON key ever touches GitHub - `google-github-actions/auth` exchanges the workflow's own
+OIDC token for short-lived GCP credentials, scoped to exactly this repo (`var.github_repository`
+in the bootstrap module's `attribute_condition`).
+
+**To ship a release**: merge `main` into `release`, then from `release`:
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
 ## Backups (SCRUM-185 acceptance criteria)
 
 - **Cloud SQL** (all 3 instances): automatic daily backup + point-in-time recovery, configured in
@@ -151,3 +180,13 @@ version bump, backfill).
 - **Certificate Manager isn't in Terraform yet**: `support-me-cert` / `support-me-cert-map` /
   its per-hostname map entries are created by hand (step 7 of first-time setup) - a
   `google_certificate_manager_*` Terraform resource set would remove that manual step.
+- **`github-actions-deployer`'s IAM roles are broad** (`roles/editor` +
+  `roles/resourcemanager.projectIamAdmin`) - a pragmatic first cut so the pipeline actually works
+  end to end, not a least-privilege scope. Tightening this to per-service roles is real
+  follow-up work.
+- **No branch protection configured on `release`** - nothing currently stops a tag from being
+  pushed against a `release` that hasn't actually merged the intended `main` commit. Worth adding
+  once more than one person is shipping releases.
+- **`terraform apply` runs unattended on every tag** (see the CI/CD section above) - the team
+  chose this deliberately for the project's current stage; revisit with a manual-approval
+  GitHub Environment gate if infra changes start landing more often or with higher risk.

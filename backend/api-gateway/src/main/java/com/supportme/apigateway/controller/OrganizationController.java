@@ -5,6 +5,7 @@ import com.supportme.apigateway.dto.CreateOrganizationRequestDto;
 import com.supportme.apigateway.dto.DeletionConfirmationStartedDto;
 import com.supportme.apigateway.dto.OrganizationResponseDto;
 import com.supportme.apigateway.dto.UpdateAboutPageRequestDto;
+import com.supportme.apigateway.dto.UpdateContactInfoRequestDto;
 import com.supportme.proto.organization.v1.ConfirmIndividualOrganizationDeletionRequest;
 import com.supportme.proto.organization.v1.ConfirmIndividualOrganizationDeletionResponse;
 import com.supportme.proto.organization.v1.CreateOrganizationRequest;
@@ -20,6 +21,8 @@ import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionRe
 import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionResponse;
 import com.supportme.proto.organization.v1.UpdateAboutPageRequest;
 import com.supportme.proto.organization.v1.UpdateAboutPageResponse;
+import com.supportme.proto.organization.v1.UpdateContactInfoRequest;
+import com.supportme.proto.organization.v1.UpdateContactInfoResponse;
 import com.supportme.proto.organization.v1.WithdrawOrganizationDeletionRequest;
 import com.supportme.proto.organization.v1.WithdrawOrganizationDeletionResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -109,6 +112,33 @@ public class OrganizationController {
                         .setId(id)
                         .setAboutContent(request.aboutContent())
                         .build());
+        return ResponseEntity.ok(OrganizationDtoMapper.toDto(response.getOrganization()));
+    }
+
+    @Operation(summary = "Update the contact info", description = "\"Informacja kontaktowa\" panel - currently just the phone number.")
+    @PatchMapping("/{id}/contact-info")
+    public ResponseEntity<OrganizationResponseDto> updateContactInfo(@AuthenticationPrincipal Jwt jwt,
+                                                                        @PathVariable String id,
+                                                                        @Valid @RequestBody UpdateContactInfoRequestDto request) {
+        UpdateContactInfoRequest.Builder grpcRequest = UpdateContactInfoRequest.newBuilder()
+                .setActorUserId(jwt.getSubject())
+                .setId(id);
+        if (request.name() != null) {
+            grpcRequest.setName(request.name());
+        }
+        if (request.firstName() != null) {
+            grpcRequest.setFirstName(request.firstName());
+        }
+        if (request.lastName() != null) {
+            grpcRequest.setLastName(request.lastName());
+        }
+        if (request.phoneNumber() != null) {
+            grpcRequest.setPhoneNumber(request.phoneNumber());
+        }
+        if (request.role() != null) {
+            grpcRequest.setRole(request.role());
+        }
+        UpdateContactInfoResponse response = organizationServiceBlockingStub.updateContactInfo(grpcRequest.build());
         return ResponseEntity.ok(OrganizationDtoMapper.toDto(response.getOrganization()));
     }
 

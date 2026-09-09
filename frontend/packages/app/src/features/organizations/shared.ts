@@ -25,7 +25,7 @@ export function statusLabel(status: OrganizationResponseDto["status"]): string {
 export function statusBadgeVariant(status: OrganizationResponseDto["status"]): BadgeVariant {
   switch (status) {
     case OrganizationResponseDtoStatus.ACTIVE:
-      return "success";
+      return "accent";
     case OrganizationResponseDtoStatus.PENDING_DELETION:
       return "warning";
     case OrganizationResponseDtoStatus.DELETED:

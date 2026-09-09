@@ -28,6 +28,10 @@ export default defineConfig({
       target: "../../../backend/api-gateway-openapi.json",
     },
     output: {
+      // NOTE: "tags-split" writes one file per tag folder but no aggregating
+      // root index.ts (confirmed against @orval/core's writeSplitTagsMode) -
+      // ../src/index.ts re-exports each generated file by name instead; keep
+      // that list in sync with the tags below.
       mode: "tags-split",
       target: "./src/generated",
       client: "react-query",

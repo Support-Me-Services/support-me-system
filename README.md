@@ -62,6 +62,44 @@ cd backend && mvn install
 docker compose up -d --build
 ```
 
+### This machine: Docker Desktop is broken, use WSL2 instead
+
+On this Windows machine, Docker Desktop crash-loops on startup with `AF_UNIX socket ... The file
+cannot be accessed by the system` — a confirmed open Docker Desktop bug
+([docker/desktop-feedback#460](https://github.com/docker/desktop-feedback/issues/460)) where every
+internal Unix-socket file it creates (`dockerInference`, `docker-secrets-engine/engine.sock`,
+`sailor-ingest.sock`, ...) gets corrupted the instant it's created, regardless of Docker Desktop
+version, antivirus state, or a clean reinstall.
+
+Workaround: run Docker Engine directly inside WSL2 (Ubuntu), bypassing Docker Desktop's Windows
+GUI/backend entirely — AF_UNIX sockets are native to Linux there, so the bug doesn't apply.
+
+```bash
+# One-time setup already done on this machine: `wsl --install -d Ubuntu`, then Docker Engine +
+# Compose plugin installed inside it via apt (see https://docs.docker.com/engine/install/ubuntu/).
+# systemd is enabled in that Ubuntu distro, so `docker.service` starts automatically on boot.
+
+# WSL2 shuts its VM down after ~1-2 min with no attached session, killing all containers even
+# though dockerd keeps running as a systemd service — vmIdleTimeout=-1 in %UserProfile%\.wslconfig
+# didn't reliably prevent this, so keep one session attached for the life of the work:
+wsl -d Ubuntu -- sleep infinity   # run in background, leave it running
+
+# Start the stack (run from Windows; /mnt/c/... is this repo inside WSL):
+wsl -d Ubuntu -u root -- bash -c "cd /mnt/c/Users/Lenovo/Desktop/Git && docker compose up -d --build"
+
+# Check status / logs:
+wsl -d Ubuntu -u root -- bash -c "cd /mnt/c/Users/Lenovo/Desktop/Git && docker compose ps"
+```
+
+Ports are forwarded to `localhost` automatically by WSL2, so `http://localhost:8080`,
+`:8081`, `:5432` etc. work from Windows exactly as if Docker Desktop were running.
+
+`backend/docker/postgres/init-multiple-dbs.sh` must have Unix (LF) line endings — CRLF breaks it
+silently inside the postgres container (`env: 'bash\r': No such file or directory`), and it fails
+to create `organization_db`/`initialization_db`/`keycloak_db`, which then makes `auth` (Keycloak)
+crash-loop with `UnknownHostException`/`database "keycloak_db" does not exist`. Already fixed in
+this repo; watch for it coming back via `core.autocrlf=true` on a fresh Windows checkout.
+
 ## Local auth setup
 
 The `support-me` realm, `support-me-web` client, and a test user aren't created automatically by

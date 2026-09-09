@@ -123,6 +123,27 @@ public class OrganizationService {
         return organization;
     }
 
+    /**
+     * Backs both the org-detail "Informacja kontaktowa" tab (phone only - name fields are
+     * simply re-sent unchanged from already-loaded data) and the "Zarządzanie kontem" screen
+     * (name/first+last name together with phone).
+     */
+    @Transactional
+    public Organization updateContactInfo(UUID actorUserId, UUID organizationId, String name, String firstName,
+                                           String lastName, String phoneNumber, String role) {
+        Organization organization = loadExisting(organizationId);
+        requireEditAccess(actorUserId, organization);
+        if (organization.getStatus() == OrganizationStatus.DELETED) {
+            throw new InvalidOrganizationStateException("Cannot edit a deleted organization: " + organizationId);
+        }
+        if (organization.isIndividual()) {
+            organization.updateIndividualProfile(firstName, lastName, phoneNumber, role, Instant.now());
+        } else {
+            organization.updateOrgProfile(name, phoneNumber, role, Instant.now());
+        }
+        return organization;
+    }
+
     @Transactional(readOnly = true)
     public Organization getPublicAboutPage(OrganizationType type, String categorySlug, String slug) {
         Organization organization = (type == OrganizationType.IND

@@ -44,6 +44,12 @@ module.exports = {
         line: "#e6eaf0",
         // "--error".
         danger: "#b3261e",
+        // Organization panel accent ("O nas"/"Wizytówka" Figma exploration) - pink/red, scoped
+        // to the organizations feature (dashboard + detail screens), not the app-wide primary.
+        accent: {
+          DEFAULT: "#e6127d",
+          foreground: "#ffffff",
+        },
       },
       spacing: {},
       borderRadius: {

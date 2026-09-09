@@ -52,6 +52,14 @@ public class Organization {
     @Column(name = "about_content")
     private String aboutContent;
 
+    /** Contact info panel ("Informacja kontaktowa" in the frontend org-detail screen). */
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
+    /** Church role shown on the "Wizytówka" page (e.g. Proboszcz, Wikariusz, Kapelan, Diakon). */
+    @Column(name = "role")
+    private String role;
+
     @Column(name = "owner_user_id", nullable = false, updatable = false)
     private UUID ownerUserId;
 
@@ -129,6 +137,24 @@ public class Organization {
         this.updatedAt = now;
     }
 
+    /** ORG only - "Nazwa organizacji" + phone + role, edited from either "Informacja kontaktowa" or "Zarządzanie kontem". */
+    public void updateOrgProfile(String name, String phoneNumber, String role, Instant now) {
+        this.name = name;
+        this.phoneNumber = phoneNumber;
+        this.role = role;
+        this.updatedAt = now;
+    }
+
+    /** IND only - "Imię i nazwisko" + phone + role; name is always re-derived from first/last, same as createIndividual. */
+    public void updateIndividualProfile(String firstName, String lastName, String phoneNumber, String role, Instant now) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.name = firstName + " " + lastName;
+        this.phoneNumber = phoneNumber;
+        this.role = role;
+        this.updatedAt = now;
+    }
+
     public void markPendingDeletion(UUID actorUserId, Instant now) {
         this.status = OrganizationStatus.PENDING_DELETION;
         this.deletionRequestedBy = actorUserId;
@@ -202,6 +228,14 @@ public class Organization {
 
     public String getAboutContent() {
         return aboutContent;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public String getRole() {
+        return role;
     }
 
     public UUID getOwnerUserId() {

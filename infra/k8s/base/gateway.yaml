@@ -14,6 +14,18 @@ kind: Gateway
 metadata:
   name: support-me-gateway
   namespace: support-me
+  annotations:
+    # GKE-specific bridge to Certificate Manager, confirmed against
+    # https://docs.cloud.google.com/kubernetes-engine/docs/how-to/secure-gateway - this is a
+    # Gateway-level annotation, NOT a per-listener `tls.options` key (tried that first, based on
+    # a wrong guess: got "Error GWCER105: invalid TLS option key" for
+    # "networking.gke.io/certificate-map", and a plain listener with no `tls` block at all
+    # (no `certificateRefs`/`options`) was rejected too - "certificateRefs or options must be
+    # specified when mode is Terminate" - resolved by using this annotation *and* omitting the
+    # `tls` block entirely from the https listener below, matching the docs exactly). The
+    # certificate + per-hostname map entries are created out-of-band (gcloud certificate-manager
+    # certificates/maps/maps entries create - see infra/README.md), not via Terraform yet.
+    networking.gke.io/certmap: support-me-cert-map
 spec:
   gatewayClassName: gke-l7-global-external-managed
   addresses:
@@ -29,16 +41,6 @@ spec:
     - name: https
       protocol: HTTPS
       port: 443
-      tls:
-        mode: Terminate
-        # GKE-specific bridge to Certificate Manager (confirmed by a real failure: a bare
-        # Gateway-level `networking.gke.io/certmap` annotation isn't read here - the upstream
-        # Gateway API schema requires `certificateRefs` or `options` on the listener itself, and
-        # GKE reads the cert map reference from `options`). The certificate + per-hostname map
-        # entries are created out-of-band (gcloud certificate-manager certificates/maps/maps
-        # entries create - see infra/README.md), not via Terraform yet.
-        options:
-          networking.gke.io/certificate-map: support-me-cert-map
       allowedRoutes:
         namespaces:
           from: Same

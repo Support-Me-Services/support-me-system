@@ -145,9 +145,9 @@ version bump, backfill).
   `/`, which 401s on api-gateway and doesn't work on Keycloak's root either - see
   `k8s/base/api-gateway/healthcheckpolicy.yaml` and `k8s/base/auth/healthcheckpolicy.yaml`
   (`HealthCheckPolicy` CRD) for the fix; (2) TLS termination needs a Certificate Manager
-  certificate map referenced via the HTTPS listener's `tls.options["networking.gke.io/certificate-map"]`
-  - a bare `networking.gke.io/certmap` annotation on the Gateway itself (the pattern used with
-  classic Ingress) is not read by this controller.
+  certificate map referenced via the **Gateway-level annotation** `networking.gke.io/certmap`
+  (confirmed against Google's own docs after two wrong guesses at a per-listener `tls.options`
+  key - the HTTPS listener itself carries no `tls` block at all when using this annotation).
 - **Certificate Manager isn't in Terraform yet**: `support-me-cert` / `support-me-cert-map` /
   its per-hostname map entries are created by hand (step 7 of first-time setup) - a
   `google_certificate_manager_*` Terraform resource set would remove that manual step.

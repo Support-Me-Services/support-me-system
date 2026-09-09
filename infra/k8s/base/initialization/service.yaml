@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: initialization
+  namespace: support-me
+spec:
+  selector:
+    app: initialization
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: grpc

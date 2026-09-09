@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: support-me
+  labels:
+    app: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      serviceAccountName: api-gateway
+      containers:
+        - name: api-gateway
+          image: api-gateway
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            # Same split as docker-compose.yml, same reason: the browser (and the frontend's
+            # OIDC client) only ever reaches Keycloak at the public auth.please-support-me.pl,
+            # so every real token's `iss` claim is that URL - issuer-uri must match exactly.
+            # jwk-set-uri is fetched by api-gateway itself and uses the in-cluster Service DNS
+            # name instead, since a pod can't resolve the public hostname the way a browser does.
+            #
+            # Launching on .pl only for now (see infra/terraform/environments/prod/variables.tf's
+            # `domains`/`primary_domain`) - please-support-me.com is added back to both values
+            # below (plus the Keycloak client's redirectUris/webOrigins) when the team cuts over.
+            # Even once both domains are live, auth/api are meant to stay on ONE canonical
+            # domain, not one-per-TLD - Spring's resource-server config only validates a single
+            # static issuer-uri, so giving Keycloak a second public hostname would need a custom
+            # multi-issuer validator. Simpler to have every frontend domain call the same backend
+            # (that's what the CORS allow-list below is for).
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+              value: https://auth.please-support-me.pl/realms/support-me
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+              value: http://auth.support-me.svc.cluster.local:8080/realms/support-me/protocol/openid-connect/certs
+            # SecurityConfig.allowedOrigins (comma-separated) - must list every origin the web
+            # app is actually served from, or the browser's CORS preflight fails. Add
+            # https://please-support-me.com when it's added to `domains` and this ingress.
+            - name: APP_CORS_ALLOWED_ORIGINS
+              value: "https://please-support-me.pl"
+            - name: SPRING_GRPC_CLIENT_CHANNELS_ORGANIZATION_ADDRESS
+              value: static://organization.support-me.svc.cluster.local:9091
+            - name: SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS
+              value: static://initialization.support-me.svc.cluster.local:9092
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi

@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.next
+**/.next
+.turbo
+**/.turbo
+.expo
+**/.expo
+out
+dist
+*.log
+.env*.local

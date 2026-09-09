@@ -45,7 +45,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/public/**",
                                 "/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-                                "/actuator/health", "/actuator/info")
+                                // "/**" (not just the bare path) - the K8s liveness/readiness
+                                // probes hit /actuator/health/liveness and .../readiness, which
+                                // are sub-paths of the health endpoint's group feature, not
+                                // covered by matching "/actuator/health" alone (confirmed by a
+                                // real failure: every pod in prod was killed in a crash loop
+                                // because kubelet's probe got 401 instead of 200).
+                                "/actuator/health/**", "/actuator/info")
                         .permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
                         .anyRequest().authenticated())

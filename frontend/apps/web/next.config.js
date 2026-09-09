@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Self-contained `.next/standalone` output (server + only the node_modules it actually needs)
+  // for the production Docker image - see frontend/apps/web/Dockerfile. Unrelated to the
+  // `output: "export"` static-export mode discussed below; standalone still runs a full Node
+  // server via `node server.js`, it just trims what gets copied into the image.
+  output: "standalone",
+
   // NOT a static export (`output: "export"`) despite the original architecture note here -
   // reverted after a real failure: SCRUM-183 added genuinely dynamic, runtime-created public
   // routes (organization ids, IND/ORG "about" page slugs that only exist once a user creates

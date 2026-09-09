@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - csi-secrets-store-rbac.yaml
+  - managed-certificate.yaml
+  - frontendconfig.yaml
+  - ingress.yaml
+  - api-gateway/deployment.yaml
+  - api-gateway/service.yaml
+  - organization/deployment.yaml
+  - organization/service.yaml
+  - organization/secretproviderclass.yaml
+  - initialization/deployment.yaml
+  - initialization/service.yaml
+  - initialization/secretproviderclass.yaml
+  - auth/deployment.yaml
+  - auth/service.yaml
+  - auth/secretproviderclass.yaml
+  - web/deployment.yaml
+  - web/service.yaml

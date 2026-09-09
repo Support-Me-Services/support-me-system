@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: support-me
+  labels:
+    app: auth
+spec:
+  # Exactly 1 replica: Keycloak 26 needs a distributed cache (Infinispan/JGroups) config to run
+  # >1 replica safely, which this manifest doesn't set up yet - scale this up only after adding
+  # that (see infra/k8s/README.md TODO).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      serviceAccountName: auth
+      containers:
+        - name: auth
+          image: quay.io/keycloak/keycloak:26.0
+          # `start`, not docker-compose's `start-dev` - start-dev disables caching/clustering
+          # safeguards and is documented as dev-only. Not `--optimized`: that flag requires a
+          # custom image pre-built with `kc.sh build` (not done here) - runtime build adds
+          # ~10-20s to startup, acceptable for now; revisit if a custom Dockerfile gets added.
+          args: ["start"]
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              # ${AUTH_DB_HOST} = auth_db module's private_ip_address output.
+              value: jdbc:postgresql://${AUTH_DB_HOST}:5432/keycloak_db
+            - name: KC_DB_USERNAME
+              value: keycloak
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-credentials
+                  key: password
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-admin-credentials
+                  key: password
+            # Keycloak is only ever reached at this ONE public hostname (see api-gateway's
+            # deployment.yaml for why auth/api stay single-domain) - pinning KC_HOSTNAME makes
+            # every issued token's issuer/frontend URL predictable, rather than relying on
+            # request-based detection. Launching on .pl first - change to auth.please-support-me.com
+            # (and update api-gateway's issuer-uri + Keycloak client redirect URIs/webOrigins)
+            # when the team cuts over.
+            - name: KC_HOSTNAME
+              value: https://auth.please-support-me.pl
+            # TLS terminates at the GKE Ingress/LB (see ../ingress.yaml); Keycloak receives
+            # plain HTTP and must trust X-Forwarded-* headers to still build https:// URLs.
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
+          # First boot does a runtime Quarkus "build" (~50s alone, since this image isn't
+          # pre-built with `kc.sh build` - see the `args` comment above) plus a Liquibase schema
+          # init on top - confirmed by a real failure: the plain readiness/livenessProbe below,
+          # with initialDelaySeconds 30/60, killed the container mid-startup on every deploy. A
+          # startupProbe defers liveness/readiness checks until it succeeds once.
+          startupProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: auth-secret

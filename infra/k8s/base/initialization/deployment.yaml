@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: initialization
+  namespace: support-me
+  labels:
+    app: initialization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: initialization
+  template:
+    metadata:
+      labels:
+        app: initialization
+    spec:
+      serviceAccountName: initialization
+      containers:
+        - name: initialization
+          image: initialization
+          ports:
+            - containerPort: 9092
+              name: grpc
+          env:
+            - name: SPRING_DATASOURCE_URL
+              # ${INITIALIZATION_DB_HOST} = initialization_db module's private_ip_address output.
+              value: jdbc:postgresql://${INITIALIZATION_DB_HOST}:5432/initialization_db
+            - name: SPRING_DATASOURCE_USERNAME
+              value: initialization
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: initialization-db-credentials
+                  key: password
+            - name: GRPC_SERVER_PORT
+              value: "9092"
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
+          # See organization/deployment.yaml's comment on this startupProbe - same slow-start
+          # issue (Liquibase + Hibernate + gRPC registration, ~65s in practice), same fix.
+          startupProbe:
+            tcpSocket:
+              port: 9092
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 9092
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9092
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: initialization-db-secret

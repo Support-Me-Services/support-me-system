@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: support-me
+
+resources:
+  - ../../base
+
+# CI (or scripts/render-k8s-manifests.sh, run manually) rewrites these to the real Artifact
+# Registry path + the digest of the image just built for this deploy - never `:latest`, so a
+# rollback is always just re-applying a previous manifest, not guessing what "latest" was.
+images:
+  - name: api-gateway
+    newName: europe-central2-docker.pkg.dev/support-me-production/support-me-system/api-gateway
+    newTag: ed7c8d4-fix1
+  - name: organization
+    newName: europe-central2-docker.pkg.dev/support-me-production/support-me-system/organization
+    newTag: ed7c8d4
+  - name: initialization
+    newName: europe-central2-docker.pkg.dev/support-me-production/support-me-system/initialization
+    newTag: ed7c8d4
+  - name: web
+    newName: europe-central2-docker.pkg.dev/support-me-production/support-me-system/web
+    newTag: ed7c8d4

@@ -47,3 +47,13 @@ backend/api-gateway-openapi.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Terraform (infra/terraform/)
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log

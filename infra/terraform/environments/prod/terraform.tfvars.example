@@ -1,0 +1,12 @@
+project_id = "your-gcp-project-id"
+region     = "europe-central2"
+
+# Launching on .pl first; please-support-me.com is added back here (and to
+# infra/k8s/base/ingress.yaml + managed-certificate.yaml) when the team decides to cut it over.
+domains = [
+  "please-support-me.pl",
+]
+
+# api.<primary_domain> and auth.<primary_domain> are the only hostnames api-gateway/Keycloak
+# answer on - see infra/k8s/base/api-gateway/deployment.yaml for why this stays singular.
+primary_domain = "please-support-me.pl"

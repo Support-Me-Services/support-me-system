@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organization
+  namespace: support-me
+  labels:
+    app: organization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: organization
+  template:
+    metadata:
+      labels:
+        app: organization
+    spec:
+      serviceAccountName: organization
+      containers:
+        - name: organization
+          # Replaced by overlays/prod/kustomization.yaml's `images:` with the real
+          # Artifact Registry path + tag/digest pushed by CI.
+          image: organization
+          ports:
+            - containerPort: 9091
+              name: grpc
+          env:
+            - name: SPRING_DATASOURCE_URL
+              # ${ORGANIZATION_DB_HOST} = organization_db module's private_ip_address output.
+              value: jdbc:postgresql://${ORGANIZATION_DB_HOST}:5432/organization_db
+            - name: SPRING_DATASOURCE_USERNAME
+              value: organization
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: organization-db-credentials
+                  key: password
+            - name: GRPC_SERVER_PORT
+              value: "9091"
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
+          # Startup (Liquibase migrations + Hibernate + gRPC server registration) took ~65s in
+          # practice - confirmed by a real failure: the plain livenessProbe below alone, with
+          # initialDelaySeconds: 30, killed the container mid-startup on every deploy. A
+          # startupProbe disables liveness/readiness checks until it succeeds once, so normal
+          # traffic still gets fast liveness/readiness checks once the app is actually up.
+          startupProbe:
+            tcpSocket:
+              port: 9091
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 9091
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9091
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: organization-db-secret

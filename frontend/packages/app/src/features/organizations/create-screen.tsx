@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "solito/navigation";
-import { useCreate, CreateOrganizationRequestDtoType } from "@support-me/api-client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCreate, getListMineQueryKey, CreateOrganizationRequestDtoType } from "@support-me/api-client";
 import { Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 
@@ -24,7 +25,17 @@ const TYPE_OPTIONS: Array<{ value: OrgType; label: string; description: string }
 
 export function CreateOrganizationScreen() {
   const router = useRouter();
-  const { mutateAsync, isPending, error } = useCreate();
+  const queryClient = useQueryClient();
+  const { mutateAsync, isPending, error } = useCreate({
+    mutation: {
+      // Without this, the dashboard's `useListMine()` keeps serving its cached
+      // (staleTime: 60s) list after a create, so the new organization only shows
+      // up once that minute expires or the user manually refreshes.
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListMineQueryKey() });
+      },
+    },
+  });
 
   const [type, setType] = useState<OrgType>("IND");
   const [firstName, setFirstName] = useState("");

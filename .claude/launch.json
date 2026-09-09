@@ -6,6 +6,12 @@
       "runtimeExecutable": "corepack",
       "runtimeArgs": ["pnpm@9.15.0", "--dir", "frontend", "--filter", "@support-me/web", "dev"],
       "port": 3000
+    },
+    {
+      "name": "mobile-web",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm@9.15.0", "--dir", "frontend/apps/mobile", "exec", "expo", "start", "--web", "--port", "8199"],
+      "port": 8199
     }
   ]
 }

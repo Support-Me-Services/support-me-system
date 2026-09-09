@@ -16,7 +16,7 @@
     "@tanstack/react-query": "^5.62.0",
     "axios": "^1.7.9",
     "react": "^19.0.0",
-    "react-native": "^0.76.5",
+    "react-native": "0.86.3",
     "solito": "^4.3.5"
   },
   "devDependencies": {

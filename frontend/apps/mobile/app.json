@@ -24,11 +24,19 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-dev-client"
+    ],
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "7a2d4057-cada-47cc-8539-618063f648ea"
       }
-    }
+    },
+    "owner": "marcin-lula-support-me"
   }
 }

@@ -39,6 +39,8 @@ export interface AuthContextValue {
   accessToken: string | null;
   login: () => void;
   logout: () => void;
+  /** Set when react-oidc-context reports an error (e.g. a failed callback) - null otherwise. */
+  authError: string | null;
 }
 
 // react-oidc-context already provides its own context; we re-export a thin
@@ -114,6 +116,7 @@ function AdapterBridge({ children }: { children: React.ReactNode }) {
       logout: () => {
         void oidc.signoutRedirect();
       },
+      authError: oidc.error?.message ?? null,
     }),
     [oidc],
   );

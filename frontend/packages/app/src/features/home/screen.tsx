@@ -16,7 +16,7 @@ import { useAuth } from "@support-me/auth";
  * for cross-platform navigation between screens defined in this package.
  */
 export function HomeScreen() {
-  const { isAuthenticated, user, login, logout } = useAuth();
+  const { isAuthenticated, user, login, logout, authError } = useAuth();
 
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-background p-6">
@@ -32,6 +32,9 @@ export function HomeScreen() {
         label={isAuthenticated ? "Log out" : "Log in"}
         onPress={isAuthenticated ? logout : login}
       />
+      {authError ? (
+        <Text className="max-w-[320px] text-center text-sm text-danger">{authError}</Text>
+      ) : null}
       {isAuthenticated ? (
         <Link href="/organizations">
           <Text className="font-sans text-[14px] font-semibold text-primary">

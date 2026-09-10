@@ -40,7 +40,12 @@ export interface AuthContextValue {
   accessToken: string | null;
   login: () => void;
   logout: () => void;
+  /** Set when the last login attempt failed (or couldn't start) - null otherwise. Diagnostic
+   *  aid for standalone builds, which have no Metro/dev-client console attached. */
+  authError: string | null;
 }
+
+const LOG_PREFIX = "[auth]";
 
 const SECURE_STORE_KEYS = {
   accessToken: "support_me.access_token",
@@ -67,13 +72,36 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const discovery: DiscoveryDocument | null = useAutoDiscovery(
-    getDiscoveryUrl(oidcConfig),
-  );
+  const discoveryUrl = getDiscoveryUrl(oidcConfig);
+  const discovery: DiscoveryDocument | null = useAutoDiscovery(discoveryUrl);
 
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Diagnostic only - a standalone/preview build has no Metro console attached, so this is
+  // otherwise invisible. Logs once on mount (config never changes at runtime) and again
+  // whenever the discovery document's fetch resolves, since a failed/never-resolving fetch
+  // (e.g. EXPO_PUBLIC_KEYCLOAK_URL wasn't actually baked into this build) is the most likely
+  // cause of "nothing happens" when tapping Log in - see login()'s `if (!discovery)` guard.
+  useEffect(() => {
+    console.log(`${LOG_PREFIX} oidcConfig`, {
+      authority: oidcConfig.authority,
+      realm: oidcConfig.realm,
+      clientId: oidcConfig.clientId,
+      redirectUri: oidcConfig.redirectUri || "(unset - falls back to makeRedirectUri)",
+      scope: oidcConfig.scope,
+      discoveryUrl,
+    });
+  }, [discoveryUrl]);
+
+  useEffect(() => {
+    console.log(`${LOG_PREFIX} discovery document ${discovery ? "loaded" : "not yet loaded"}`, {
+      discoveryUrl,
+      authorizationEndpoint: discovery?.authorizationEndpoint,
+    });
+  }, [discovery, discoveryUrl]);
 
   // Restore any persisted session on mount.
   useEffect(() => {
@@ -85,6 +113,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessToken(storedAccess);
       setRefreshToken(storedRefresh);
       setIsLoading(false);
+      console.log(`${LOG_PREFIX} restored session from SecureStore`, {
+        hadAccessToken: Boolean(storedAccess),
+        hadRefreshToken: Boolean(storedRefresh),
+      });
     })();
   }, []);
 
@@ -113,25 +145,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(() => {
-    if (!discovery) return;
+    setAuthError(null);
+    console.log(`${LOG_PREFIX} login() called`, { discoveryReady: Boolean(discovery) });
+
+    if (!discovery) {
+      // Previously silently did nothing here - the single most confusing failure mode to
+      // diagnose from a standalone build, since tapping the button looked like it did
+      // literally nothing. Now at least visible via authError + this log line.
+      const message =
+        "Konfiguracja logowania jeszcze się nie załadowała (brak połączenia z serwerem " +
+        `Keycloak pod adresem ${discoveryUrl}?). Spróbuj ponownie za chwilę.`;
+      console.warn(`${LOG_PREFIX} login() aborted - discovery document not loaded yet`, {
+        discoveryUrl,
+      });
+      setAuthError(message);
+      return;
+    }
 
     (async () => {
-      const redirectUri =
-        oidcConfig.redirectUri || makeRedirectUri({ scheme: "supportme" });
+      try {
+        const redirectUri =
+          oidcConfig.redirectUri || makeRedirectUri({ scheme: "supportme" });
+        console.log(`${LOG_PREFIX} starting auth request`, { redirectUri });
 
-      const requestConfig: AuthRequestConfig = {
-        clientId: oidcConfig.clientId,
-        scopes: oidcConfig.scope.split(" "),
-        redirectUri,
-        // PKCE is enabled by default by AuthRequest (usePKCE: true).
-        usePKCE: true,
-      };
+        const requestConfig: AuthRequestConfig = {
+          clientId: oidcConfig.clientId,
+          scopes: oidcConfig.scope.split(" "),
+          redirectUri,
+          // PKCE is enabled by default by AuthRequest (usePKCE: true).
+          usePKCE: true,
+        };
 
-      const request = new AuthRequest(requestConfig);
-      const result = await request.promptAsync(discovery);
+        const request = new AuthRequest(requestConfig);
+        const result = await request.promptAsync(discovery);
+        console.log(`${LOG_PREFIX} promptAsync result`, { type: result.type });
 
-      const code = result.type === "success" ? result.params.code : undefined;
-      if (code && request.codeVerifier) {
+        const code = result.type === "success" ? result.params.code : undefined;
+        if (result.type !== "success") {
+          // type is "cancel" (user closed the browser tab) or "dismiss" - not an error, just
+          // not proceeding; surfaced anyway since from the button's point of view it also
+          // looks like "nothing happened".
+          setAuthError(`Logowanie nie zostało ukończone (${result.type}).`);
+          return;
+        }
+        if (!code || !request.codeVerifier) {
+          setAuthError("Serwer logowania nie zwrócił oczekiwanego kodu autoryzacji.");
+          console.warn(`${LOG_PREFIX} success result missing code/codeVerifier`, result);
+          return;
+        }
+
+        console.log(`${LOG_PREFIX} exchanging code for tokens`);
         const tokenResult = await exchangeCodeAsync(
           {
             clientId: oidcConfig.clientId,
@@ -146,9 +209,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           tokenResult.accessToken,
           tokenResult.refreshToken ?? null,
         );
+        console.log(`${LOG_PREFIX} login complete, tokens persisted`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`${LOG_PREFIX} login() failed`, error);
+        setAuthError(`Logowanie nie powiodło się: ${message}`);
       }
     })();
-  }, [discovery, persistTokens]);
+  }, [discovery, discoveryUrl, persistTokens]);
 
   const logout = useCallback(() => {
     void persistTokens(null, null);
@@ -187,8 +255,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       accessToken,
       login,
       logout,
+      authError,
     }),
-    [accessToken, isLoading, user, login, logout],
+    [accessToken, isLoading, user, login, logout, authError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -232,7 +301,8 @@ export async function refreshAccessToken(): Promise<string | null> {
       );
     }
     return tokenResult.accessToken;
-  } catch {
+  } catch (error) {
+    console.error(`${LOG_PREFIX} refreshAccessToken() failed`, error);
     return null;
   }
 }

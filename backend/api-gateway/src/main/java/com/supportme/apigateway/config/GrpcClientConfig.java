@@ -1,6 +1,7 @@
 package com.supportme.apigateway.config;
 
 import com.supportme.proto.initialization.v1.InitializationServiceGrpc;
+import com.supportme.proto.organization.v1.InvitationServiceGrpc;
 import com.supportme.proto.organization.v1.OrganizationServiceGrpc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,13 @@ public class GrpcClientConfig {
     public OrganizationServiceGrpc.OrganizationServiceBlockingStub organizationServiceBlockingStub(
             GrpcChannelFactory channelFactory) {
         return OrganizationServiceGrpc.newBlockingStub(channelFactory.createChannel("organization"));
+    }
+
+    // Served by the same process as OrganizationService, over the same "organization" channel.
+    @Bean
+    public InvitationServiceGrpc.InvitationServiceBlockingStub invitationServiceBlockingStub(
+            GrpcChannelFactory channelFactory) {
+        return InvitationServiceGrpc.newBlockingStub(channelFactory.createChannel("organization"));
     }
 
     @Bean

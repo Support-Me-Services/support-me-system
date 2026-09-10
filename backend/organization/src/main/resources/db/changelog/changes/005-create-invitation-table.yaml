@@ -1,0 +1,77 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-01-create-invitation-table
+      author: supportme
+      comment: >
+        Organization invitations (SCRUM-188/SCRUM-189). invited_by_user_id is kept for audit
+        only - the frontend shows a generic "Administrator" label rather than resolving it to a
+        name, since this service has no access to user identity (owned by Keycloak).
+      changes:
+        - createTable:
+            tableName: invitation
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: organization_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_invitation_organization
+                    references: organization(id)
+              - column:
+                  name: invited_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: invited_by_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: invitation
+            indexName: ix_invitation_invited_user_id
+            columns:
+              - column:
+                  name: invited_user_id
+        - createIndex:
+            tableName: invitation
+            indexName: ix_invitation_organization_id
+            columns:
+              - column:
+                  name: organization_id
+
+  - changeSet:
+      id: 005-02-invitation-one-pending-per-org-user
+      author: supportme
+      comment: >
+        Partial unique index (Postgres-specific, hence raw sql - see 002-organization-management.yaml's
+        identical rationale). At most one PENDING invitation per (organization, invited user) at
+        a time; re-inviting after a decline is allowed, sending a duplicate while one is already
+        pending is not.
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_invitation_one_pending_per_org_user
+              ON invitation (organization_id, invited_user_id)
+              WHERE status = 'PENDING'

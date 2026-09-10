@@ -208,7 +208,7 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
   return (
     <View className="flex-1 bg-background">
       <View className="mx-auto w-full max-w-[900px] gap-4 p-6 py-10">
-        <View className="flex-row items-center justify-between">
+        <View className="gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <Link href="/organizations">
             <Text className="font-sans text-[14px] font-semibold text-accent">
               ← Wróć do Moje organizacje
@@ -221,30 +221,33 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
           </Link>
         </View>
 
-        <View className="flex-row gap-10">
-        {/* Left menu - this organization's own sections */}
-        <View className="w-[220px] gap-1">
+        <View className="gap-6 sm:flex-row sm:gap-10">
+        {/* Left menu - this organization's own sections. Stacked full-width above the
+            content on narrow screens; a fixed-width column beside it from sm: up. */}
+        <View className="gap-1 sm:w-[220px]">
           <Text className="mb-2 font-serif text-[17px] font-bold text-foreground">
             {organization.name}
           </Text>
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === activeTab;
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => setActiveTab(item.key)}
-                className={`self-start rounded-pill px-3 py-2 ${active ? "bg-accent/10" : ""}`}
-              >
-                <Text
-                  className={`font-sans text-[14px] ${
-                    active ? "font-semibold text-accent" : "text-foreground"
-                  }`}
+          <View className="flex-row flex-wrap gap-2 sm:flex-col sm:flex-nowrap sm:gap-1">
+            {NAV_ITEMS.map((item) => {
+              const active = item.key === activeTab;
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setActiveTab(item.key)}
+                  className={`self-start rounded-pill px-3 py-2 ${active ? "bg-accent/10" : ""}`}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    className={`font-sans text-[14px] ${
+                      active ? "font-semibold text-accent" : "text-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         {/* Content */}
@@ -252,7 +255,7 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
 
           {activeTab === "wizytowka" ? (
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
-              <View className="flex-row items-center gap-3">
+              <View className="flex-row flex-wrap items-center gap-3">
                 <Text className="font-serif text-[20px] font-bold text-foreground">
                   {organization.name}
                 </Text>
@@ -329,7 +332,7 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
 
           {activeTab === "kontakt" ? (
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
-              <View className="flex-row items-center gap-3">
+              <View className="flex-row flex-wrap items-center gap-3">
                 <Text className="font-serif text-[20px] font-bold text-foreground">
                   {organization.name}
                 </Text>
@@ -417,7 +420,7 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
 
           {activeTab === "usuwanie" ? (
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
-              <View className="flex-row items-center gap-3">
+              <View className="flex-row flex-wrap items-center gap-3">
                 <Text className="font-serif text-[20px] font-bold text-foreground">
                   {organization.name}
                 </Text>

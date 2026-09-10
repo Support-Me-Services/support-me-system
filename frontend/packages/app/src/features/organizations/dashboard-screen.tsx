@@ -17,12 +17,12 @@ export function OrganizationsDashboardScreen() {
   return (
     <View className="flex-1 bg-band">
       <View className="mx-auto w-full max-w-[900px] gap-4 p-6 py-12">
-        <View className="flex-row items-center justify-between">
-          <Text className="font-serif text-[32px] font-bold text-foreground">
+        <View className="gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <Text className="font-serif text-[28px] font-bold text-foreground sm:text-[32px]">
             Moje organizacje
           </Text>
           <Link href="/organizations/new">
-            <View className="items-center justify-center rounded-pill bg-accent px-6 py-4">
+            <View className="items-center justify-center self-start rounded-pill bg-accent px-6 py-4 sm:self-auto">
               <Text className="font-sans text-base font-semibold text-accent-foreground">
                 + Nowa organizacja
               </Text>
@@ -60,7 +60,7 @@ export function OrganizationsDashboardScreen() {
           contentContainerStyle={{ gap: 12 }}
           renderItem={({ item }: { item: OrganizationResponseDto }) => (
             <Link href={`/organizations/${item.id}`}>
-              <View className="w-full flex-row items-center justify-between rounded-card-lg bg-background p-6 shadow-sm">
+              <View className="w-full gap-3 rounded-card-lg bg-background p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <View className="gap-1">
                   <Text className="font-serif text-[20px] font-bold text-foreground">
                     {item.name}
@@ -69,7 +69,7 @@ export function OrganizationsDashboardScreen() {
                     {organizationPublicPath(item)}
                   </Text>
                 </View>
-                <View className="flex-row gap-2">
+                <View className="flex-row flex-wrap gap-2">
                   <Badge label={typeLabel(item.type)} variant="neutral" />
                   <Badge label={statusLabel(item.status)} variant={statusBadgeVariant(item.status)} />
                 </View>

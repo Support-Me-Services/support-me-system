@@ -197,8 +197,8 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
           <Text className="font-serif text-[20px] font-bold text-foreground">
             {isIndividual ? "Dane indywidualne" : "Dane organizacji"}
           </Text>
-          <View className="flex-row gap-4">
-            <View className="flex-1 gap-1.5">
+          <View className="gap-4 sm:flex-row">
+            <View className="gap-1.5 sm:flex-1">
               <View className="flex-row items-center justify-between">
                 <Text className="font-sans text-[12px] font-medium text-muted">Adres e-mail</Text>
               </View>
@@ -207,7 +207,7 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
               </View>
             </View>
 
-            <View className="flex-1 gap-1.5">
+            <View className="gap-1.5 sm:flex-1">
               <View className="flex-row items-center justify-between">
                 <Text className="font-sans text-[12px] font-medium text-muted">Numer telefonu</Text>
                 {organizationId ? (

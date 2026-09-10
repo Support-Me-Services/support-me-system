@@ -146,6 +146,10 @@ services:
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth:8080/realms/support-me/protocol/openid-connect/certs
       SPRING_GRPC_CLIENT_CHANNELS_ORGANIZATION_ADDRESS: static://organization:9091
       SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS: static://initialization:9092
+      # Same split as jwk-set-uri above: api-gateway is a *container* and can't resolve
+      # "localhost:8081" as the host's Keycloak, so the Admin API client needs the
+      # compose-network hostname instead. See KeycloakUserDirectory's class doc.
+      APP_KEYCLOAK_ADMIN_BASE_URL: http://auth:8080
     ports:
       - "8080:8080"
     depends_on:

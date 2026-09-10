@@ -29,6 +29,19 @@ spring:
           address: static://initialization:9092
           negotiation-type: plaintext
 
+app:
+  keycloak-admin:
+    # Local dev default (non-docker) - overridden by docker-compose's env var, which points at
+    # the "auth" service hostname on the compose network instead, same split as jwk-set-uri
+    # above. Authenticates as the Keycloak bootstrap admin; see KeycloakUserDirectory's class
+    # doc for why that's local-dev-only.
+    base-url: http://localhost:8081
+    realm: support-me
+    admin-realm: master
+    admin-client-id: admin-cli
+    admin-username: admin
+    admin-password: admin
+
 springdoc:
   api-docs:
     path: /api-docs

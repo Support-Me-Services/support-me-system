@@ -3,7 +3,9 @@ package com.supportme.apigateway.controller;
 import com.supportme.apigateway.dto.ConfirmDeletionRequestDto;
 import com.supportme.apigateway.dto.CreateOrganizationRequestDto;
 import com.supportme.apigateway.dto.DeletionConfirmationStartedDto;
+import com.supportme.apigateway.dto.InvitationResponseDto;
 import com.supportme.apigateway.dto.OrganizationResponseDto;
+import com.supportme.apigateway.dto.SendInvitationRequestDto;
 import com.supportme.apigateway.dto.UpdateAboutPageRequestDto;
 import com.supportme.apigateway.dto.UpdateContactInfoRequestDto;
 import com.supportme.proto.organization.v1.ConfirmIndividualOrganizationDeletionRequest;
@@ -12,6 +14,7 @@ import com.supportme.proto.organization.v1.CreateOrganizationRequest;
 import com.supportme.proto.organization.v1.CreateOrganizationResponse;
 import com.supportme.proto.organization.v1.GetOrganizationRequest;
 import com.supportme.proto.organization.v1.GetOrganizationResponse;
+import com.supportme.proto.organization.v1.InvitationServiceGrpc;
 import com.supportme.proto.organization.v1.ListMyOrganizationsRequest;
 import com.supportme.proto.organization.v1.ListMyOrganizationsResponse;
 import com.supportme.proto.organization.v1.OrganizationServiceGrpc;
@@ -21,6 +24,8 @@ import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionRe
 import com.supportme.proto.organization.v1.StartIndividualOrganizationDeletionResponse;
 import com.supportme.proto.organization.v1.UpdateAboutPageRequest;
 import com.supportme.proto.organization.v1.UpdateAboutPageResponse;
+import com.supportme.proto.organization.v1.SendInvitationRequest;
+import com.supportme.proto.organization.v1.SendInvitationResponse;
 import com.supportme.proto.organization.v1.UpdateContactInfoRequest;
 import com.supportme.proto.organization.v1.UpdateContactInfoResponse;
 import com.supportme.proto.organization.v1.WithdrawOrganizationDeletionRequest;
@@ -55,9 +60,12 @@ import java.util.List;
 public class OrganizationController {
 
     private final OrganizationServiceGrpc.OrganizationServiceBlockingStub organizationServiceBlockingStub;
+    private final InvitationServiceGrpc.InvitationServiceBlockingStub invitationServiceBlockingStub;
 
-    public OrganizationController(OrganizationServiceGrpc.OrganizationServiceBlockingStub organizationServiceBlockingStub) {
+    public OrganizationController(OrganizationServiceGrpc.OrganizationServiceBlockingStub organizationServiceBlockingStub,
+                                   InvitationServiceGrpc.InvitationServiceBlockingStub invitationServiceBlockingStub) {
         this.organizationServiceBlockingStub = organizationServiceBlockingStub;
+        this.invitationServiceBlockingStub = invitationServiceBlockingStub;
     }
 
     @Operation(summary = "Create an organization",
@@ -181,5 +189,20 @@ public class OrganizationController {
                         .setConfirmationToken(request.confirmationToken())
                         .build());
         return ResponseEntity.ok(OrganizationDtoMapper.toDto(response.getOrganization()));
+    }
+
+    @Operation(summary = "Invite a user to this organization",
+            description = "ORG only, caller must administer it. Fails if the user is already a member or already has a pending invitation.")
+    @PostMapping("/{id}/invitations")
+    public ResponseEntity<InvitationResponseDto> sendInvitation(@AuthenticationPrincipal Jwt jwt,
+                                                                   @PathVariable String id,
+                                                                   @Valid @RequestBody SendInvitationRequestDto request) {
+        SendInvitationResponse response = invitationServiceBlockingStub.sendInvitation(
+                SendInvitationRequest.newBuilder()
+                        .setActorUserId(jwt.getSubject())
+                        .setOrganizationId(id)
+                        .setInvitedUserId(request.invitedUserId())
+                        .build());
+        return ResponseEntity.ok(InvitationDtoMapper.toDto(response.getInvitation()));
     }
 }

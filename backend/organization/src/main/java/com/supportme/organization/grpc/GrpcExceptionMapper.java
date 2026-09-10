@@ -1,8 +1,13 @@
 package com.supportme.organization.grpc;
 
+import com.supportme.organization.service.AlreadyOrganizationMemberException;
 import com.supportme.organization.service.DuplicateIndividualOrganizationException;
+import com.supportme.organization.service.DuplicateInvitationException;
 import com.supportme.organization.service.InvalidDeletionConfirmationException;
+import com.supportme.organization.service.InvalidInvitationStateException;
 import com.supportme.organization.service.InvalidOrganizationStateException;
+import com.supportme.organization.service.InvitationNotFoundException;
+import com.supportme.organization.service.InvitationPermissionDeniedException;
 import com.supportme.organization.service.OrganizationNotFoundException;
 import com.supportme.organization.service.OrganizationPermissionDeniedException;
 import io.grpc.Status;
@@ -15,16 +20,18 @@ final class GrpcExceptionMapper {
     }
 
     static StatusRuntimeException toStatusException(RuntimeException e) {
-        if (e instanceof OrganizationNotFoundException) {
+        if (e instanceof OrganizationNotFoundException || e instanceof InvitationNotFoundException) {
             return Status.NOT_FOUND.withDescription(e.getMessage()).withCause(e).asRuntimeException();
         }
-        if (e instanceof OrganizationPermissionDeniedException) {
+        if (e instanceof OrganizationPermissionDeniedException || e instanceof InvitationPermissionDeniedException) {
             return Status.PERMISSION_DENIED.withDescription(e.getMessage()).withCause(e).asRuntimeException();
         }
-        if (e instanceof DuplicateIndividualOrganizationException) {
+        if (e instanceof DuplicateIndividualOrganizationException
+                || e instanceof DuplicateInvitationException
+                || e instanceof AlreadyOrganizationMemberException) {
             return Status.ALREADY_EXISTS.withDescription(e.getMessage()).withCause(e).asRuntimeException();
         }
-        if (e instanceof InvalidOrganizationStateException) {
+        if (e instanceof InvalidOrganizationStateException || e instanceof InvalidInvitationStateException) {
             return Status.FAILED_PRECONDITION.withDescription(e.getMessage()).withCause(e).asRuntimeException();
         }
         if (e instanceof InvalidDeletionConfirmationException) {

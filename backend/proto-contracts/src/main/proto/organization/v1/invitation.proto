@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package organization.v1;
+
+option java_package = "com.supportme.proto.organization.v1";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+
+// Manages organization invitations (SCRUM-188: an ORG administrator invites a user by id;
+// SCRUM-189: the invited user accepts or declines). Served by the same process as
+// OrganizationService (same module, same gRPC server) and follows the same authorization split
+// documented on OrganizationService - fine-grained, resource-level checks (is the actor an
+// ADMINISTRATOR of the organization? is the actor the invitee?) happen HERE, from
+// actor_user_id resolved server-side by the gateway from the JWT `sub` claim.
+service InvitationService {
+  // ORG administrator only. Fails with PERMISSION_DENIED if the actor doesn't administer
+  // organization_id, ALREADY_EXISTS if the invited user is already a member or already has a
+  // pending invitation to this organization.
+  rpc SendInvitation(SendInvitationRequest) returns (SendInvitationResponse);
+
+  // Every PENDING invitation addressed to the actor, across all organizations.
+  rpc ListMyInvitations(ListMyInvitationsRequest) returns (ListMyInvitationsResponse);
+
+  // Every invitation the actor has sent (any status), across every organization they
+  // administer, newest first.
+  rpc ListSentInvitations(ListSentInvitationsRequest) returns (ListSentInvitationsResponse);
+
+  // Invited user only. Idempotent: accepting an already-ACCEPTED invitation returns it
+  // unchanged rather than erroring or creating a duplicate membership.
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
+
+  // Invited user only. Idempotent: declining an already-DECLINED invitation returns it
+  // unchanged rather than erroring.
+  rpc DeclineInvitation(DeclineInvitationRequest) returns (DeclineInvitationResponse);
+}
+
+enum InvitationStatus {
+  INVITATION_STATUS_UNSPECIFIED = 0;
+  INVITATION_STATUS_PENDING = 1;
+  INVITATION_STATUS_ACCEPTED = 2;
+  INVITATION_STATUS_DECLINED = 3;
+}
+
+message Invitation {
+  string id = 1;
+  string organization_id = 2;
+
+  // Only populated by ListMyInvitations and ListSentInvitations (the two RPCs whose caller
+  // doesn't already know which organization this is about) - empty on Send/Accept/Decline
+  // responses.
+  string organization_name = 3;
+
+  string invited_user_id = 4;
+
+  // Audit only. Never resolved to a name here - this service has no access to user identity
+  // (owned by Keycloak); the frontend shows a generic "Administrator" label instead.
+  string invited_by_user_id = 5;
+
+  InvitationStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message SendInvitationRequest {
+  string actor_user_id = 1;
+  string organization_id = 2;
+  string invited_user_id = 3;
+}
+
+message SendInvitationResponse {
+  Invitation invitation = 1;
+}
+
+message ListMyInvitationsRequest {
+  string actor_user_id = 1;
+}
+
+message ListMyInvitationsResponse {
+  repeated Invitation invitations = 1;
+}
+
+message ListSentInvitationsRequest {
+  string actor_user_id = 1;
+}
+
+message ListSentInvitationsResponse {
+  repeated Invitation invitations = 1;
+}
+
+message AcceptInvitationRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message AcceptInvitationResponse {
+  Invitation invitation = 1;
+}
+
+message DeclineInvitationRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message DeclineInvitationResponse {
+  Invitation invitation = 1;
+}

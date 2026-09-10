@@ -11,3 +11,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/004-add-role.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/changes/005-create-invitation-table.yaml
+      relativeToChangelogFile: false

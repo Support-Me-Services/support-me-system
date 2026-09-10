@@ -17,6 +17,7 @@ import {
 } from "@support-me/api-client";
 import { Badge, HtmlContent, Input, RichTextEditor, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
+import { InviteMembersPanel } from "./invite-members-panel";
 import { statusBadgeVariant, statusLabel } from "./shared";
 
 export interface OrganizationDetailScreenProps {
@@ -71,11 +72,12 @@ function FadingSaved({ trigger }: { trigger: boolean }) {
   );
 }
 
-type Tab = "wizytowka" | "kontakt" | "usuwanie";
+type Tab = "wizytowka" | "kontakt" | "zaproszenia" | "usuwanie";
 
 const NAV_ITEMS: { key: Tab; label: string }[] = [
   { key: "wizytowka", label: "Wizytówka" },
   { key: "kontakt", label: "Informacja kontaktowa" },
+  { key: "zaproszenia", label: "Zaproszenia" },
   { key: "usuwanie", label: "Usuwanie" },
 ];
 
@@ -229,7 +231,7 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
             {organization.name}
           </Text>
           <View className="flex-row flex-wrap gap-2 sm:flex-col sm:flex-nowrap sm:gap-1">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => item.key !== "zaproszenia" || !isIndividual).map((item) => {
               const active = item.key === activeTab;
               return (
                 <Pressable
@@ -416,6 +418,10 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                 {!isEditingContact ? <FadingSaved trigger={contactJustSaved} /> : null}
               </View>
             </View>
+          ) : null}
+
+          {activeTab === "zaproszenia" && !isIndividual ? (
+            <InviteMembersPanel organizationId={organizationId} />
           ) : null}
 
           {activeTab === "usuwanie" ? (

@@ -9,3 +9,5 @@ export * from "./generated/openAPIDefinition.schemas";
 export * from "./generated/organizations/organizations";
 export * from "./generated/public-organization-pages/public-organization-pages";
 export * from "./generated/super-administrator/super-administrator";
+export * from "./generated/invitations/invitations";
+export * from "./generated/users/users";

@@ -210,14 +210,14 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
   return (
     <View className="flex-1 bg-background">
       <View className="mx-auto w-full max-w-[900px] gap-4 p-6 py-10">
-        <View className="gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <View className="border-b border-line pb-2 sm:flex-row sm:items-center sm:justify-between sm:border-b-0 sm:pb-0">
           <Link href="/organizations">
-            <Text className="font-sans text-[14px] font-semibold text-accent">
+            <Text className="self-start py-2 font-sans text-[14px] font-semibold text-accent">
               ← Wróć do Moje organizacje
             </Text>
           </Link>
           <Link href={`/organizations/${organizationId}/account`}>
-            <Text className="font-sans text-[14px] font-semibold text-accent">
+            <Text className="self-end py-2 font-sans text-[14px] font-semibold text-accent sm:self-auto">
               Zarządzanie kontem →
             </Text>
           </Link>
@@ -226,11 +226,11 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
         <View className="gap-6 sm:flex-row sm:gap-10">
         {/* Left menu - this organization's own sections. Stacked full-width above the
             content on narrow screens; a fixed-width column beside it from sm: up. */}
-        <View className="gap-1 sm:w-[220px]">
-          <Text className="mb-2 font-serif text-[17px] font-bold text-foreground">
+        <View className="gap-2 sm:w-[220px]">
+          <Text className="font-serif text-[17px] font-bold text-foreground">
             {organization.name}
           </Text>
-          <View className="flex-row flex-wrap gap-2 sm:flex-col sm:flex-nowrap sm:gap-1">
+          <View className="flex-row flex-wrap gap-2 rounded-card-lg border border-line bg-background p-2 shadow-sm sm:flex-col sm:flex-nowrap sm:gap-1">
             {NAV_ITEMS.filter((item) => item.key !== "zaproszenia" || !isIndividual).map((item) => {
               const active = item.key === activeTab;
               return (

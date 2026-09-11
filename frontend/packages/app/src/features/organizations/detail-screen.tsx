@@ -239,9 +239,12 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                   onPress={() => setActiveTab(item.key)}
                   className={`self-start rounded-pill px-3 py-2 ${active ? "bg-accent/10" : ""}`}
                 >
+                  {/* font-medium stays constant across states - only color changes - so an
+                      item's glyph width doesn't shift and reflow its neighbors in this
+                      flex-wrap row when the active tab changes. */}
                   <Text
-                    className={`font-sans text-[14px] ${
-                      active ? "font-semibold text-accent" : "text-foreground"
+                    className={`font-sans text-[14px] font-medium ${
+                      active ? "text-accent" : "text-foreground"
                     }`}
                   >
                     {item.label}
@@ -355,9 +358,12 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                             selected ? "border-accent bg-accent/10" : "border-line"
                           }`}
                         >
+                          {/* font-medium stays constant across states - only color changes - so
+                              an option's glyph width doesn't shift and reflow its neighbors in
+                              this flex-wrap row when the selection changes. */}
                           <Text
-                            className={`font-sans text-[14px] ${
-                              selected ? "font-semibold text-accent" : "text-foreground"
+                            className={`font-sans text-[14px] font-medium ${
+                              selected ? "text-accent" : "text-foreground"
                             }`}
                           >
                             {option}

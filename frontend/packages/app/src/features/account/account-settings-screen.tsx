@@ -147,9 +147,12 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
                         selected ? "border-accent bg-accent/10" : "border-line"
                       }`}
                     >
+                      {/* font-medium stays constant across states - only color changes - so an
+                          option's glyph width doesn't shift and reflow its neighbors in this
+                          flex-wrap row when the selection changes. */}
                       <Text
-                        className={`font-sans text-[14px] ${
-                          selected ? "font-semibold text-accent" : "text-foreground"
+                        className={`font-sans text-[14px] font-medium ${
+                          selected ? "text-accent" : "text-foreground"
                         }`}
                       >
                         {option}

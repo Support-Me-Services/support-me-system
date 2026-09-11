@@ -202,6 +202,7 @@ public class OrganizationController {
                         .setActorUserId(jwt.getSubject())
                         .setOrganizationId(id)
                         .setInvitedUserId(request.invitedUserId())
+                        .setMessage(request.message() == null ? "" : request.message())
                         .build());
         return ResponseEntity.ok(InvitationDtoMapper.toDto(response.getInvitation()));
     }

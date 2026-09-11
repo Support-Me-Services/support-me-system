@@ -20,3 +20,4 @@ export { PendingDeletionsScreen } from "./features/admin/pending-deletions-scree
 
 export { ReceivedInvitationsScreen } from "./features/invitations/received-invitations-screen";
 export { SentInvitationsScreen } from "./features/invitations/sent-invitations-screen";
+export { AddInvitationScreen } from "./features/invitations/add-invitation-screen";

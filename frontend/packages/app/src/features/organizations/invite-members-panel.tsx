@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSearch, useSendInvitation, type UserSearchResultDto } from "@support-me/api-client";
-import { Input, Spinner } from "@support-me/ui";
+import { Avatar, Badge, Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 
 export interface InviteMembersPanelProps {
@@ -30,6 +30,8 @@ export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) 
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query.trim(), 300);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
+  const [selectedUser, setSelectedUser] = useState<UserSearchResultDto | null>(null);
+  const [message, setMessage] = useState("");
 
   const {
     data: results,
@@ -43,10 +45,20 @@ export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) 
 
   const sendInvitation = useSendInvitation();
 
-  const handleInvite = async (user: UserSearchResultDto) => {
-    if (!user.id) return;
-    await sendInvitation.mutateAsync({ id: organizationId, data: { invitedUserId: user.id } });
-    setSentTo((prev) => new Set(prev).add(user.id!));
+  const handleSend = async () => {
+    if (!selectedUser?.id) return;
+    await sendInvitation.mutateAsync({
+      id: organizationId,
+      data: { invitedUserId: selectedUser.id, message: message.trim() || undefined },
+    });
+    setSentTo((prev) => new Set(prev).add(selectedUser.id!));
+    setSelectedUser(null);
+    setMessage("");
+  };
+
+  const selectUser = (user: UserSearchResultDto) => {
+    setSelectedUser((prev) => (prev?.id === user.id ? null : user));
+    sendInvitation.reset();
   };
 
   return (
@@ -58,6 +70,14 @@ export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) 
         value={query}
         onChangeText={setQuery}
         placeholder="jan.kowalski@example.com"
+      />
+
+      <Input
+        label="Wiadomość (opcjonalnie)"
+        value={message}
+        onChangeText={setMessage}
+        placeholder="Napisz kilka słów do tej osoby..."
+        multiline
       />
 
       {debouncedQuery.length > 0 && debouncedQuery.length < 2 ? (
@@ -79,31 +99,60 @@ export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) 
       <View className="gap-2">
         {(results ?? []).map((user) => {
           const alreadySent = Boolean(user.id && sentTo.has(user.id));
+          const isSelected = Boolean(user.id && selectedUser?.id === user.id);
+          const initial = user.name?.trim().charAt(0).toUpperCase() || "?";
           return (
-            <View
+            <Pressable
               key={user.id}
-              className="flex-row items-center justify-between rounded-card border border-line px-4 py-3"
+              onPress={() => !alreadySent && selectUser(user)}
+              disabled={alreadySent}
+              className={`flex-row items-center gap-3 rounded-card-lg border px-4 py-3 shadow-sm ${
+                isSelected ? "border-accent bg-accent/5" : "border-line bg-background"
+              }`}
             >
-              <View className="gap-0.5">
-                <Text className="font-sans text-[14px] font-semibold text-foreground">{user.name}</Text>
-                <Text className="font-sans text-[13px] text-muted">{user.email}</Text>
+              <Avatar label={initial} tone="accent" />
+              <View className="flex-1 gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                <View className="sm:min-w-0 sm:flex-1">
+                  <Text
+                    className="font-sans text-[14px] font-semibold text-foreground"
+                    numberOfLines={1}
+                  >
+                    {user.name}
+                  </Text>
+                </View>
+                <View className="sm:min-w-0 sm:flex-1">
+                  <Text className="font-sans text-[13px] text-muted" numberOfLines={1}>
+                    {user.email}
+                  </Text>
+                </View>
               </View>
               {alreadySent ? (
-                <Text className="font-sans text-[13px] font-semibold text-accent">
-                  Zaproszenie wysłane ✓
-                </Text>
-              ) : (
-                <Pressable
-                  onPress={() => handleInvite(user)}
-                  disabled={sendInvitation.isPending}
-                  className={`rounded-pill bg-accent px-4 py-2 ${sendInvitation.isPending ? "opacity-50" : ""}`}
-                >
-                  <Text className="font-sans text-[13px] font-semibold text-accent-foreground">Zaproś</Text>
-                </Pressable>
-              )}
-            </View>
+                <Badge label="Zaproszenie wysłane ✓" variant="success" />
+              ) : isSelected ? (
+                <Badge label="Wybrano" variant="accent" />
+              ) : null}
+            </Pressable>
           );
         })}
+      </View>
+
+      <View className="gap-2">
+        <Pressable
+          onPress={handleSend}
+          disabled={!selectedUser || sendInvitation.isPending}
+          className={`self-start rounded-pill bg-accent px-5 py-3 ${
+            !selectedUser || sendInvitation.isPending ? "opacity-50" : ""
+          }`}
+        >
+          <Text className="font-sans text-[13px] font-semibold text-accent-foreground">
+            Wyślij zaproszenie
+          </Text>
+        </Pressable>
+        {!selectedUser && results?.length ? (
+          <Text className="font-sans text-[13px] text-muted">
+            Wybierz osobę z listy powyżej, aby wysłać zaproszenie.
+          </Text>
+        ) : null}
       </View>
     </View>
   );

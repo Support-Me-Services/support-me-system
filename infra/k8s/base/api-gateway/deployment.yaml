@@ -50,6 +50,22 @@ spec:
               value: static://organization.support-me.svc.cluster.local:9091
             - name: SPRING_GRPC_CLIENT_CHANNELS_INITIALIZATION_ADDRESS
               value: static://initialization.support-me.svc.cluster.local:9092
+            # KeycloakUserDirectory (SCRUM-188 user search) admin client - application.yml's
+            # base-url/admin-password defaults are local-dev-only (see its class doc). base-url
+            # points at the in-cluster auth Service, same DNS name as the JWK_SET_URI above;
+            # admin-password is the real bootstrap admin password Keycloak was started with,
+            # synced from Secret Manager by api-gateway/secretproviderclass.yaml.
+            - name: APP_KEYCLOAK_ADMIN_BASE_URL
+              value: http://auth.support-me.svc.cluster.local:8080
+            - name: APP_KEYCLOAK_ADMIN_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-gateway-keycloak-admin-credentials
+                  key: password
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
@@ -66,3 +82,10 @@ spec:
               memory: 512Mi
             limits:
               memory: 1Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: api-gateway-secret

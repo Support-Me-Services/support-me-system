@@ -15,6 +15,13 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_KEYCLOAK_URL": "https://auth.please-support-me.pl",
+        "EXPO_PUBLIC_KEYCLOAK_REALM": "support-me",
+        "EXPO_PUBLIC_KEYCLOAK_CLIENT_ID": "support-me-web",
+        "EXPO_PUBLIC_KEYCLOAK_SCOPE": "openid profile email",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.please-support-me.pl"
       }
     },
     "production": {

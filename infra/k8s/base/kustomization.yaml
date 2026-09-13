@@ -10,6 +10,7 @@ resources:
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
   - api-gateway/healthcheckpolicy.yaml
+  - api-gateway/secretproviderclass.yaml
   - organization/deployment.yaml
   - organization/service.yaml
   - organization/secretproviderclass.yaml

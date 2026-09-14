@@ -23,3 +23,14 @@ resources:
   - auth/secretproviderclass.yaml
   - web/deployment.yaml
   - web/service.yaml
+
+# Support-Me branding for the Keycloak login page (SCRUM-202). Generator (not a static
+# ConfigMap) so kustomize appends a content hash to the name and rewrites every reference to
+# it - editing a file here forces a new ConfigMap and, because the auth Deployment's pod
+# template changes, a rollout - no manual `kubectl rollout restart` needed after a theme change.
+configMapGenerator:
+  - name: auth-theme-support-me
+    files:
+      - auth/theme/theme.properties
+      - auth/theme/styles.css
+      - auth/theme/logo.svg

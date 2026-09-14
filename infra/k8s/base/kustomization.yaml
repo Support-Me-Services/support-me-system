@@ -34,3 +34,4 @@ configMapGenerator:
       - auth/theme/theme.properties
       - auth/theme/styles.css
       - auth/theme/logo.svg
+      - auth/theme/messages_en.properties

@@ -86,6 +86,10 @@ spec:
               mountPath: /opt/keycloak/themes/support-me/login/resources/img/logo.svg
               subPath: logo.svg
               readOnly: true
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/messages/messages_en.properties
+              subPath: messages_en.properties
+              readOnly: true
           # First boot does a runtime Quarkus "build" (~50s alone, since this image isn't
           # pre-built with `kc.sh build` - see the `args` comment above) plus a Liquibase schema
           # init on top - confirmed by a real failure: the plain readiness/livenessProbe below,

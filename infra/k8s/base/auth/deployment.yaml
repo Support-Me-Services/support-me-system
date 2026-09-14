@@ -68,6 +68,24 @@ spec:
             - name: secrets-store
               mountPath: /mnt/secrets
               readOnly: true
+            # Support-Me branding for the login page (SCRUM-202) - Keycloak auto-discovers any
+            # theme dropped under /opt/keycloak/themes/<name> at startup, no rebuild needed.
+            # Three subPath mounts (ConfigMap keys can't contain '/') to recreate the theme's
+            # directory layout; the realm's "Login theme" still has to be switched to
+            # "support-me" by hand in the Admin Console - that setting lives in the Postgres-
+            # backed realm, not in this repo.
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/theme.properties
+              subPath: theme.properties
+              readOnly: true
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/resources/css/styles.css
+              subPath: styles.css
+              readOnly: true
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/resources/img/logo.svg
+              subPath: logo.svg
+              readOnly: true
           # First boot does a runtime Quarkus "build" (~50s alone, since this image isn't
           # pre-built with `kc.sh build` - see the `args` comment above) plus a Liquibase schema
           # init on top - confirmed by a real failure: the plain readiness/livenessProbe below,
@@ -102,3 +120,8 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: auth-secret
+        - name: auth-theme-support-me
+          configMap:
+            # Name kept as declared in the configMapGenerator (kustomization.yaml) -
+            # kustomize rewrites this to the generated, content-hashed name at build time.
+            name: auth-theme-support-me

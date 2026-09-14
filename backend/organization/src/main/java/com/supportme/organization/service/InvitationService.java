@@ -37,7 +37,7 @@ public class InvitationService {
     }
 
     @Transactional
-    public Invitation send(UUID actorUserId, UUID organizationId, UUID invitedUserId) {
+    public Invitation send(UUID actorUserId, UUID organizationId, UUID invitedUserId, String message) {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new OrganizationNotFoundException(organizationId));
         if (organization.isIndividual()) {
@@ -54,8 +54,9 @@ public class InvitationService {
             throw new DuplicateInvitationException(invitedUserId, organizationId);
         }
 
+        String trimmedMessage = message == null || message.isBlank() ? null : message.trim();
         Invitation invitation = Invitation.create(
-                UUID.randomUUID(), organizationId, invitedUserId, actorUserId, Instant.now());
+                UUID.randomUUID(), organizationId, invitedUserId, actorUserId, trimmedMessage, Instant.now());
         return invitationRepository.save(invitation);
     }
 

@@ -20,6 +20,7 @@ final class InvitationMapper {
                 .setStatus(toProtoStatus(invitation.getStatus()))
                 .setCreatedAt(OrganizationMapper.toTimestamp(invitation.getCreatedAt()))
                 .setUpdatedAt(OrganizationMapper.toTimestamp(invitation.getUpdatedAt()))
+                .setMessage(invitation.getMessage() == null ? "" : invitation.getMessage())
                 .build();
     }
 

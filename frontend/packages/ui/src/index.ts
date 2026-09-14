@@ -10,6 +10,9 @@ export type { CardProps } from "./Card";
 export { Badge } from "./Badge";
 export type { BadgeProps, BadgeVariant } from "./Badge";
 
+export { Avatar } from "./Avatar";
+export type { AvatarProps, AvatarTone } from "./Avatar";
+
 export { Spinner } from "./Spinner";
 export type { SpinnerProps } from "./Spinner";
 

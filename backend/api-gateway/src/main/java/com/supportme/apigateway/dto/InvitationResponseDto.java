@@ -13,6 +13,8 @@ public record InvitationResponseDto(
         String invitedUserId,
         InvitationStatusDto status,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        @Schema(description = "Optional note the inviting administrator wrote, shown to the invitee.")
+        String message
 ) {
 }

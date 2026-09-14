@@ -71,14 +71,14 @@ export function CreateOrganizationScreen() {
 
         <View className="w-full gap-4 rounded-card-lg bg-background p-7 shadow-sm">
           <Text className="font-sans text-[14px] font-semibold text-foreground">Typ organizacji</Text>
-          <View className="flex-row gap-3">
+          <View className="gap-3 sm:flex-row">
             {TYPE_OPTIONS.map((option) => {
               const selected = type === option.value;
               return (
                 <Pressable
                   key={option.value}
                   onPress={() => setType(option.value)}
-                  className={`flex-1 gap-1 rounded-card border p-4 ${
+                  className={`gap-1 rounded-card border p-4 sm:flex-1 ${
                     selected ? "border-accent bg-accent/5" : "border-line bg-background"
                   }`}
                 >

@@ -60,12 +60,18 @@ message Invitation {
   InvitationStatus status = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+
+  // Optional note the inviting administrator wrote for the invitee. Empty when none was given.
+  string message = 9;
 }
 
 message SendInvitationRequest {
   string actor_user_id = 1;
   string organization_id = 2;
   string invited_user_id = 3;
+
+  // Optional, max 1000 chars - enforced by SendInvitationRequestDto on the gateway.
+  string message = 4;
 }
 
 message SendInvitationResponse {

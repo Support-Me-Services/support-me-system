@@ -39,12 +39,16 @@ public class Invitation {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Optional note the inviting administrator wrote for the invitee - null when none was given. */
+    @Column(name = "message", updatable = false)
+    private String message;
+
     protected Invitation() {
         // JPA
     }
 
     public static Invitation create(UUID id, UUID organizationId, UUID invitedUserId, UUID invitedByUserId,
-                                     Instant now) {
+                                     String message, Instant now) {
         Invitation invitation = new Invitation();
         invitation.id = id;
         invitation.organizationId = organizationId;
@@ -53,6 +57,7 @@ public class Invitation {
         invitation.status = InvitationStatus.PENDING;
         invitation.createdAt = now;
         invitation.updatedAt = now;
+        invitation.message = message;
         return invitation;
     }
 
@@ -96,5 +101,9 @@ public class Invitation {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getMessage() {
+        return message;
     }
 }

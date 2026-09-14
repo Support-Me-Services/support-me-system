@@ -35,7 +35,7 @@ public class InvitationGrpcService extends InvitationServiceGrpc.InvitationServi
             UUID actorUserId = parseUuid(request.getActorUserId(), "actor_user_id");
             UUID organizationId = parseUuid(request.getOrganizationId(), "organization_id");
             UUID invitedUserId = parseUuid(request.getInvitedUserId(), "invited_user_id");
-            Invitation invitation = invitationService.send(actorUserId, organizationId, invitedUserId);
+            Invitation invitation = invitationService.send(actorUserId, organizationId, invitedUserId, request.getMessage());
             return SendInvitationResponse.newBuilder()
                     .setInvitation(InvitationMapper.toProto(invitation, ""))
                     .build();

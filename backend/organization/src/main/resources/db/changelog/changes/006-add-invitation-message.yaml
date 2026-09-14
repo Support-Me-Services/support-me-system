@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-01-add-invitation-message
+      author: supportme
+      comment: >
+        Optional note the inviting administrator can attach to an invitation, shown to the
+        invitee (SCRUM-188 follow-up). Nullable - most invitations still won't have one.
+      changes:
+        - addColumn:
+            tableName: invitation
+            columns:
+              - column:
+                  name: message
+                  type: varchar(1000)
+                  constraints:
+                    nullable: true

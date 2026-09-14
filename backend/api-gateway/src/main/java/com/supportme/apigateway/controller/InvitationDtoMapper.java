@@ -21,7 +21,8 @@ final class InvitationDtoMapper {
                 invitation.getInvitedUserId(),
                 toStatusDto(invitation.getStatus()),
                 toInstant(invitation.getCreatedAt()),
-                toInstant(invitation.getUpdatedAt()));
+                toInstant(invitation.getUpdatedAt()),
+                blankToNull(invitation.getMessage()));
     }
 
     private static InvitationStatusDto toStatusDto(InvitationStatus status) {

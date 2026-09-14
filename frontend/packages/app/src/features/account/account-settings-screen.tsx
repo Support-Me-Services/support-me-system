@@ -147,9 +147,12 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
                         selected ? "border-accent bg-accent/10" : "border-line"
                       }`}
                     >
+                      {/* font-medium stays constant across states - only color changes - so an
+                          option's glyph width doesn't shift and reflow its neighbors in this
+                          flex-wrap row when the selection changes. */}
                       <Text
-                        className={`font-sans text-[14px] ${
-                          selected ? "font-semibold text-accent" : "text-foreground"
+                        className={`font-sans text-[14px] font-medium ${
+                          selected ? "text-accent" : "text-foreground"
                         }`}
                       >
                         {option}
@@ -197,8 +200,8 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
           <Text className="font-serif text-[20px] font-bold text-foreground">
             {isIndividual ? "Dane indywidualne" : "Dane organizacji"}
           </Text>
-          <View className="flex-row gap-4">
-            <View className="flex-1 gap-1.5">
+          <View className="gap-4 sm:flex-row">
+            <View className="gap-1.5 sm:flex-1">
               <View className="flex-row items-center justify-between">
                 <Text className="font-sans text-[12px] font-medium text-muted">Adres e-mail</Text>
               </View>
@@ -207,7 +210,7 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
               </View>
             </View>
 
-            <View className="flex-1 gap-1.5">
+            <View className="gap-1.5 sm:flex-1">
               <View className="flex-row items-center justify-between">
                 <Text className="font-sans text-[12px] font-medium text-muted">Numer telefonu</Text>
                 {organizationId ? (

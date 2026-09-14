@@ -90,6 +90,17 @@ body#keycloak-bg {
   box-shadow: 0 0 0 1px var(--sm-blue);
 }
 
+/* wiersz "Zapamiętaj mnie" / "Zapomniałeś hasła?" na Keycloak 25 (klasa login-pf-settings
+   z bazowego motywu "keycloak"); na Keycloak 26 tej klasy już nie ma w DOM, więc reguła
+   po prostu nic nie robi - bezpieczne dla obu wersji */
+.login-pf-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* checkbox "Zapamiętaj mnie" (Keycloak 26 / pf-v5-c-check) */
 .pf-v5-c-check {
   display: flex;
@@ -134,14 +145,72 @@ a:hover {
 }
 
 /* --- logowanie społecznościowe (Google / Facebook) --- */
+
+/* dzielnik "lub" nad ikonami - Keycloak nic takiego nie renderuje, dorysowujemy go czystym CSS
+   (linia z ::before + etykieta z ::after na tle karty, żeby "przecinała" linię) */
+#kc-social-providers {
+  position: relative;
+  margin-top: 4px;
+  padding-top: 28px;
+}
+#kc-social-providers::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--sm-border);
+}
+#kc-social-providers::after {
+  content: 'lub';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--sm-muted);
+}
+
+/* lista przycisków w rzędzie, po równo (jak w Figmie), zamiast domyślnej kolumny */
+.pf-v5-c-login__main-footer-links {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pf-v5-c-login__main-footer-links-item {
+  flex: 1;
+}
+
 .pf-v5-c-login__main-footer-links-item-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
   border: 1px solid var(--sm-border);
   border-radius: 10px;
   background: #ffffff;
   color: var(--sm-ink);
+  font-size: 13px;
+  font-weight: 500;
 }
 .pf-v5-c-login__main-footer-links-item-link:hover {
   border-color: var(--sm-blue);
+}
+.pf-v5-c-login__main-footer-links-item-link svg {
+  width: 18px;
+  height: 18px;
+}
+/* Keycloak nie renderuje tekstu obok ikony (tylko aria-label) - doklejamy go czystym CSS,
+   żeby nie edytować szablonu .ftl; działa dla każdego języka bo czyta realny atrybut */
+.pf-v5-c-login__main-footer-links-item-link::after {
+  content: attr(aria-label);
 }
 
 /* --- stopka "Nie masz konta? Zarejestruj się" --- */

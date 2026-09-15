@@ -8,6 +8,17 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
+/* Keycloak to osobne, pelne przeladowania strony (login -> rejestracja i z
+   powrotem), nie SPA - bez tego klik "Zarejestruj się" wyglada jak "fantom":
+   stara strona znika, przez ulamek sekundy biel, nowa wskakuje (rozne
+   wysokosci karty miedzy stronami to podkreslaja). View Transitions API
+   (natywne w przegladarce, bez JS) daje plynny crossfade miedzy tymi
+   pelnymi nawigacjami - wspierane w nowych Chrome/Edge, w innych po prostu
+   brak efektu (normalna nawigacja), wiec bezpieczne do dodania. */
+@view-transition {
+  navigation: auto;
+}
+
 :root {
   --sm-blue: #1473c0;
   --sm-blue-2: #4e7fa7;
@@ -16,14 +27,21 @@
   --sm-wave: #d8e3ec;
   --sm-muted: #6b7a90;
   --sm-border: #e2e8f0;
+  --sm-placeholder: #9aa6b5;
+  --sm-checkbox-border: #c7d0db;
 }
 
+/* Tlo: dwa plaskie kola jak w Figmie (nie miekkie rozmycie) - polozenie/promien/kolor/
+   przezroczystosc przeniesione 1:1 z wartosci ukladu Figma (rama 1440x900):
+   rozowe kolo r=380 @ (1020,200) op. 0.16, niebieskie kolo r=250 @ (70,770) op. 0.1.
+   circle <dlugosc> w vw (nie %) bo % promienia nie jest wspierane spojnie miedzy
+   przegladarkami; 99%/100% daje twardy brzeg zamiast rozmytego fade. */
 body#keycloak-bg {
   min-height: 100vh;
   background-color: #eef3f7;
   background-image:
-    radial-gradient(circle at 88% -8%, rgba(232, 161, 181, 0.35), transparent 42%),
-    radial-gradient(circle at -8% 78%, rgba(20, 115, 192, 0.16), transparent 42%);
+    radial-gradient(circle 26.4vw at 71% 22%, rgba(232, 161, 181, 0.16) 99%, transparent 100%),
+    radial-gradient(circle 17.4vw at 5% 86%, rgba(20, 115, 192, 0.1) 99%, transparent 100%);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
@@ -41,15 +59,32 @@ body#keycloak-bg {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 32px;
+  padding: 18px 48px 6px;
+  gap: 6px;
 }
 .pf-v5-c-login__main-header::before {
   content: '';
   display: block;
-  width: 150px;
-  height: 29px;
-  margin: 0 auto 16px;
+  width: 130px;
+  height: 25px;
+  margin: 0 auto 6px;
   background: url('../img/logo.svg') no-repeat center / contain;
+}
+/* Rejestracja ma 6 pol + potwierdzenie hasla - znacznie wiecej tresci niz
+   logowanie (2 pola), wiec przy wspolnych odstepach jak na logowaniu (patrz
+   wyzej) caly kafelek nie miescil sie bez scrollowania na typowym oknie
+   przegladarki. #kc-register-form istnieje tylko na .ftl rejestracji, wiec
+   :has() pozwala zawezyc ciasniejszy layout tylko do tej strony, bez
+   wplywu na logowanie (ktore ma miejsca pod dostatkiem przy tych samych
+   regulach). */
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-login__main-header {
+  padding: 10px 48px 2px;
+  gap: 2px;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-login__main-header::before {
+  width: 96px;
+  height: 18px;
+  margin: 0 auto 2px;
 }
 
 /* --- karta logowania --- */
@@ -61,34 +96,170 @@ body#keycloak-bg {
   background: #ffffff;
   border-radius: 20px;
   box-shadow: 0 24px 48px rgba(27, 42, 61, 0.1);
-  padding: 8px 8px 24px;
+  padding: 8px 8px 12px;
+  position: relative;
+}
+.pf-v5-c-login__main:has(#kc-register-form) {
+  padding: 6px 8px 8px;
+}
+
+/* mobile - ponizej 27.5rem karty PatternFly sam przelacza kontener z grid na
+   block (pelna szerokosc), ale nie dodaje zadnego marginesu bocznego - karta
+   styka sie z krawedziami ekranu. Dodajemy odstep i lekko zmniejszamy naglowek/
+   padding karty, zeby tresc miala oddech na waskim ekranie. */
+@media (max-width: 480px) {
+  .pf-v5-c-login__container {
+    padding: 0 16px;
+  }
+  .pf-v5-c-login__main-header {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+  .pf-v5-c-login__main-body,
+  #kc-registration-container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .pf-v5-c-login__main-header-utilities {
+    top: 14px;
+    right: 14px;
+  }
+}
+
+/* przelacznik jezyka (PL/EN) - Keycloak renderuje go jako <select> w
+   .pf-v5-c-login__main-header-utilities (wewnatrz #kc-locale), domyslnie w
+   normalnym przeplywie nad tytulem. Wyjmujemy go z przeplywu (position:
+   absolute wzgledem karty .pf-v5-c-login__main, ktora ma teraz position:
+   relative) i wciskamy w prawy gorny rog, a select przestylowujemy na
+   maly, plaski toggle zamiast pelnego pola formularza (dzieli klase
+   .pf-v5-c-form-control z polami e-mail/haslo, wiec trzeba to nadpisac
+   bardziej szczegolowym selektorem). Etykiety "PL"/"EN" - zobacz klucze
+   locale_pl / locale_en w messages/*.properties. */
+.pf-v5-c-login__main-header-utilities {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  margin: 0;
+}
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  min-height: auto;
+}
+.pf-v5-c-login__main-header-utilities select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sm-muted);
+  cursor: pointer;
+  padding: 4px 16px 4px 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236b7a90' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 9px;
+}
+.pf-v5-c-login__main-header-utilities select:hover {
+  color: var(--sm-blue);
+}
+/* PatternFly dokleja wlasna ikone-strzalke jako osobny <span> obok <select>
+   (.pf-v5-c-form-control__utilities) - to ten drugi, "zbedny" chevron obok
+   naszego wlasnego z background-image powyzej; chowamy go, zeby nie bylo
+   podwojnej strzalki */
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control__utilities {
+  display: none;
 }
 
 .pf-v5-c-title.pf-m-3xl {
   font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
   font-weight: 700;
-  font-size: 25px;
-  line-height: 1.3;
+  font-size: 22px;
+  line-height: 1.25;
   color: var(--sm-ink);
   text-align: center;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-title.pf-m-3xl {
+  font-size: 20px;
+  line-height: 1.2;
 }
 
 /* podtytul pod tytulem karty logowania - Keycloak nie ma na to osobnego message
    key/slotu w login.ftl, wiec doklejamy go czystym CSS (ten sam trik co przy
-   "lub" i etykietach social - zobacz nizej), zamiast nadpisywac template.ftl */
+   "lub" i etykietach social - zobacz nizej), zamiast nadpisywac template.ftl.
+   Tresc zalezna od jezyka przez html:lang(), bo template.ftl (keycloak.v2)
+   ustawia <html lang="..."> na podstawie wybranego locale - dzieki temu dziala
+   dla obu jezykow bez .ftl. */
 .pf-v5-c-title.pf-m-3xl::after {
   content: 'Zaloguj się, aby zarządzać swoim wsparciem i organizacjami.';
   display: block;
-  margin-top: 12px;
+  margin-top: 6px;
   font-family: 'Inter', sans-serif;
   font-weight: 400;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.35;
   color: var(--sm-muted);
+}
+html:lang(en) .pf-v5-c-title.pf-m-3xl::after {
+  content: 'Sign in to manage your support and organizations.';
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-title.pf-m-3xl::after {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .pf-v5-c-login__main-body {
   color: var(--sm-ink);
+  padding-bottom: 12px;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-login__main-body {
+  padding-bottom: 4px;
+}
+
+/* "* Wymagane pola" na rejestracji (stara bootstrapowa klasa .subtitle z
+   login-pf, nie nasza - por. przelacznik jezyka wyzej) siedzi jako caly wiersz
+   miedzy podtytulem karty a pierwszym polem i wizualnie sie z nimi tloczy.
+   Chowamy caly tekst poza gwiazdka i przesuwamy w prawo - na hover
+   overflow:hidden + max-width daje plynne "wysuwanie sie" tekstu zamiast
+   zwyklego pokazania/ukrycia. */
+.subtitle {
+  display: flex;
+  justify-content: flex-end;
+  margin: -2px 0 0;
+}
+.subtitle .pf-v5-c-helper-text__item-text {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 7px;
+  font-size: 12px;
+  color: var(--sm-muted);
+  cursor: default;
+  transition: max-width 0.35s ease;
+}
+.subtitle .pf-v5-c-helper-text__item-text:hover {
+  max-width: 160px;
+}
+/* ta gwiazdka ma byc tego samego czerwonego co "*" przy polach (np. "Haslo *") -
+   ten kolor tam pochodzi z reguly PatternFly zawezonej do .pf-v5-c-form__label,
+   ktorego .subtitle nie ma, wiec bez tego dziedziczylaby szary .item-text */
+.subtitle .pf-v5-c-form__label-required {
+  color: rgb(201, 25, 11);
+}
+
+/* formularz jest .pf-v5-c-form (display:grid), odstep miedzy polami/przyciskiem
+   to jego row-gap - domyslne 24px z PatternFly jest za duze zeby caly kafelek
+   (razem z Google/Facebook) miescil sie bez scrollowania na nizszych oknach */
+.pf-v5-c-form {
+  row-gap: 16px;
+}
+#kc-register-form {
+  row-gap: 7px;
 }
 
 /* --- pola formularza --- */
@@ -98,16 +269,42 @@ body#keycloak-bg {
   font-size: 13px;
   color: var(--sm-ink);
 }
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-form__label-text {
+  font-size: 12px;
+}
+.pf-v5-c-form__group-label {
+  padding-bottom: 3px;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-form__group-label {
+  padding-bottom: 1px;
+}
 
 .pf-v5-c-form-control {
   border: 1px solid var(--sm-wave);
   border-radius: 10px;
   background: #ffffff;
-  min-height: 46px;
+  min-height: 42px;
+  align-items: center;
 }
-.pf-v5-c-form-control:focus-within {
-  border-color: var(--sm-blue);
-  box-shadow: 0 0 0 1px var(--sm-blue);
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-form-control {
+  min-height: 34px;
+}
+/* !important, bo pierwsze pole ma autofocus - przy przejsciu miedzy stronami
+   (View Transitions wyzej) przegladarka na ulamek sekundy potrafi pokazac
+   natywny niebieski outline focusu na tym polu, zanim ustabilizuje sie
+   nasz styl; :focus-visible dodane osobno bo to on odpowiada za natywny
+   pierscien fokusu w nowszych przegladarkach, nie tylko :focus */
+.pf-v5-c-form-control input,
+.pf-v5-c-form-control input:focus,
+.pf-v5-c-form-control input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* PatternFly rysuje wlasny niebieski podkreslnik na fokusie przez ::after
+   (--pf-v5-c-form-control--m-focus--after--BorderBottomColor) - niezalezny od
+   naszego border/box-shadow powyzej, wiec trzeba go osobno wylaczyc */
+.pf-v5-c-form-control::after {
+  border-bottom: none !important;
 }
 
 /* wiersz "Zapamiętaj mnie" / "Zapomniałeś hasła?" na Keycloak 25 (klasa login-pf-settings
@@ -121,25 +318,53 @@ body#keycloak-bg {
   gap: 8px;
 }
 
-/* checkbox "Zapamiętaj mnie" (Keycloak 26 / pf-v5-c-check) */
-.pf-v5-c-check {
+/* checkbox "Zapamiętaj mnie" - Keycloak 26 (.pf-v5-c-check) i Keycloak 25 (stare
+   bootstrapowe .checkbox z login-pf) renderuja dwie rozne struktury DOM dla tego
+   samego pola, wiec stylujemy input po prostu w kontekscie obu wrapperow zamiast
+   zakladac tylko jeden z nich - inaczej regula nigdy sie nie dopasowuje na tej
+   wersji, ktora faktycznie serwuje stary .checkbox. appearance:none + wlasny
+   checkmark (SVG w tle), bo samym accent-color nie da sie ustawic promienia
+   rogow/koloru obwodki nieodfajkowanego pola spojnie miedzy przegladarkami. */
+.pf-v5-c-check,
+.login-pf-settings .checkbox {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.pf-v5-c-check input[type='checkbox'] {
+.pf-v5-c-check input[type='checkbox'],
+.login-pf-settings input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
   accent-color: var(--sm-blue);
   width: 16px;
   height: 16px;
+  margin: 0;
+  border: 1px solid var(--sm-checkbox-border);
+  border-radius: 4px;
+  background-color: #ffffff;
+  cursor: pointer;
 }
-.pf-v5-c-check__label {
+.pf-v5-c-check input[type='checkbox']:checked,
+.login-pf-settings input[type='checkbox']:checked {
+  background-color: var(--sm-blue);
+  border-color: var(--sm-blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.5L6.5 11.5L12.5 4.5' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.pf-v5-c-check__label,
+.login-pf-settings .checkbox .pf-v5-c-form__label-text {
   font-size: 13px;
+  font-weight: 400;
   color: var(--sm-muted);
 }
 
-/* link "Zapomniałeś hasła?" pod polem hasła (Keycloak 26 / pf-v5-c-helper-text) */
-.pf-v5-c-helper-text__item-text a {
-  font-size: 13px;
+/* link "Zapomniałeś hasła?" - Keycloak 26 (pf-v5-c-helper-text) i Keycloak 25
+   (zwykly <span><a> w .login-pf-settings, ktory faktycznie tu wystepuje - stad
+   drugi selektor) */
+.pf-v5-c-helper-text__item-text a,
+.login-pf-settings a {
+  font-size: 12px;
 }
 
 a,
@@ -154,10 +379,14 @@ a:hover {
 /* --- przycisk główny --- */
 .pf-v5-c-button.pf-m-primary {
   background-color: var(--sm-blue);
-  border-radius: 10px;
+  border-radius: 12px;
   font-family: 'Inter', sans-serif;
+  font-size: 15px;
   font-weight: 600;
-  min-height: 48px;
+  min-height: 44px;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-button.pf-m-primary {
+  min-height: 40px;
 }
 .pf-v5-c-button.pf-m-primary:hover,
 .pf-v5-c-button.pf-m-primary:focus {
@@ -166,17 +395,27 @@ a:hover {
 
 /* --- logowanie społecznościowe (Google / Facebook) --- */
 
+/* Keycloak 26 (produkcja - lokalnie testujemy na 25.0.2, stad to umknelo) dorzuca wlasny
+   naglowek "Or sign in with" (message key identity-provider-login-label) tuz przed
+   #kc-social-providers, w .pf-v5-c-login__main-footer-band-item wewnatrz
+   .pf-v5-c-login__main-footer - ten kontener jest UZYWANY WYLACZNIE przez socialProviders
+   section w template.ftl (stopka "Nie masz konta?" renderuje sie osobno, w sekcji "info"),
+   wiec ten selektor nigdy jej nie dotyka. Zbedny obok naszego wlasnego dzielnika "lub" nizej. */
+.pf-v5-c-login__main-footer > .pf-v5-c-login__main-footer-band {
+  display: none;
+}
+
 /* dzielnik "lub" nad ikonami - Keycloak nic takiego nie renderuje, dorysowujemy go czystym CSS
    (linia z ::before + etykieta z ::after na tle karty, żeby "przecinała" linię) */
 #kc-social-providers {
   position: relative;
-  margin-top: 4px;
-  padding-top: 28px;
+  margin-top: 0;
+  padding-top: 16px;
 }
 #kc-social-providers::before {
   content: '';
   position: absolute;
-  top: 10px;
+  top: 0;
   left: 0;
   right: 0;
   height: 1px;
@@ -191,7 +430,10 @@ a:hover {
   background: #ffffff;
   padding: 0 12px;
   font-size: 12px;
-  color: var(--sm-muted);
+  color: var(--sm-placeholder);
+}
+html:lang(en) #kc-social-providers::after {
+  content: 'or';
 }
 
 /* lista przycisków w rzędzie, po równo (jak w Figmie), zamiast domyślnej kolumny */
@@ -212,7 +454,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 46px;
+  height: 42px;
   border: 1px solid var(--sm-border);
   border-radius: 10px;
   background: #ffffff;
@@ -224,8 +466,8 @@ a:hover {
   border-color: var(--sm-blue);
 }
 .pf-v5-c-login__main-footer-links-item-link svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 /* Keycloak nie renderuje tekstu obok ikony (tylko aria-label) - doklejamy go czystym CSS,
    żeby nie edytować szablonu .ftl; działa dla każdego języka bo czyta realny atrybut */
@@ -234,8 +476,18 @@ a:hover {
 }
 
 /* --- stopka "Nie masz konta? Zarejestruj się" --- */
+.pf-v5-c-login__main-footer-band {
+  padding: 8px 0 0;
+  margin-top: 0;
+}
+.pf-v5-c-login__main:has(#kc-register-form) .pf-v5-c-login__main-footer-band {
+  padding-top: 4px;
+}
 .pf-v5-c-login__main-footer-band-item {
   color: var(--sm-muted);
   font-size: 13px;
   text-align: center;
+}
+.pf-v5-c-login__main-footer-band-item a {
+  font-weight: 600;
 }

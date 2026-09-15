@@ -70,10 +70,12 @@ spec:
               readOnly: true
             # Support-Me branding for the login page (SCRUM-202) - Keycloak auto-discovers any
             # theme dropped under /opt/keycloak/themes/<name> at startup, no rebuild needed.
-            # Three subPath mounts (ConfigMap keys can't contain '/') to recreate the theme's
-            # directory layout; the realm's "Login theme" still has to be switched to
-            # "support-me" by hand in the Admin Console - that setting lives in the Postgres-
-            # backed realm, not in this repo.
+            # One subPath mount per file (ConfigMap keys can't contain '/') to recreate the
+            # theme's directory layout. Two realm settings still have to be switched by hand in
+            # the Admin Console - both live in the Postgres-backed realm, not in this repo:
+            #   - Realm settings -> Themes -> Login theme -> support-me
+            #   - Realm settings -> Localization -> Internationalization: On, Supported locales
+            #     pl+en, Default locale pl (needed for the PL/EN switcher, locale.js below)
             - name: auth-theme-support-me
               mountPath: /opt/keycloak/themes/support-me/login/theme.properties
               subPath: theme.properties
@@ -89,6 +91,14 @@ spec:
             - name: auth-theme-support-me
               mountPath: /opt/keycloak/themes/support-me/login/messages/messages_en.properties
               subPath: messages_en.properties
+              readOnly: true
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/messages/messages_pl.properties
+              subPath: messages_pl.properties
+              readOnly: true
+            - name: auth-theme-support-me
+              mountPath: /opt/keycloak/themes/support-me/login/resources/js/locale.js
+              subPath: locale.js
               readOnly: true
           # First boot does a runtime Quarkus "build" (~50s alone, since this image isn't
           # pre-built with `kc.sh build` - see the `args` comment above) plus a Liquibase schema

@@ -201,8 +201,29 @@ class OrganizationServiceTest {
         when(membershipRepository.findByUserId(actor)).thenReturn(List.of(membership));
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
 
-        List<Organization> result = service.listMine(actor);
+        List<OrganizationService.OrganizationWithRole> result = service.listMine(actor);
 
-        assertThat(result).containsExactlyInAnyOrder(ind, org);
+        assertThat(result).extracting(OrganizationService.OrganizationWithRole::organization)
+                .containsExactlyInAnyOrder(ind, org);
+        assertThat(result).extracting(OrganizationService.OrganizationWithRole::role)
+                .containsExactlyInAnyOrder(MembershipRole.ADMINISTRATOR, MembershipRole.ADMINISTRATOR);
+    }
+
+    @Test
+    void listMine_includesOrgsWhereActorIsOnlyAMember() {
+        UUID actor = UUID.randomUUID();
+        Organization org = Organization.createOrg(UUID.randomUUID(), UUID.randomUUID(), "Acme", "Fundacja", "fundacja", "acme", Instant.now());
+        OrganizationMembership membership = new OrganizationMembership(UUID.randomUUID(), org.getId(), actor, MembershipRole.MEMBER, Instant.now());
+
+        when(organizationRepository.findByOwnerUserIdAndTypeAndStatusNot(actor, OrganizationType.IND, OrganizationStatus.DELETED))
+                .thenReturn(List.of());
+        when(membershipRepository.findByUserId(actor)).thenReturn(List.of(membership));
+        when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
+
+        List<OrganizationService.OrganizationWithRole> result = service.listMine(actor);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).organization()).isEqualTo(org);
+        assertThat(result.get(0).role()).isEqualTo(MembershipRole.MEMBER);
     }
 }

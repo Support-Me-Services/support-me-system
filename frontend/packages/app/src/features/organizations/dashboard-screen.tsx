@@ -3,16 +3,18 @@
 import React from "react";
 import { FlatList, Text, View } from "react-native";
 import { Link } from "solito/link";
-import { useListMine } from "@support-me/api-client";
+import { useListMine, OrganizationResponseDtoMyRole } from "@support-me/api-client";
 import { Badge, Spinner } from "@support-me/ui";
 import { useAuth } from "@support-me/auth";
 import { getErrorMessage } from "../../lib/errors";
 import type { OrganizationResponseDto } from "@support-me/api-client";
+import { useActiveOrganization } from "./active-organization";
 import { organizationPublicPath, typeLabel, statusBadgeVariant, statusLabel } from "./shared";
 
 export function OrganizationsDashboardScreen() {
   const { user } = useAuth();
   const { data: organizations, isLoading, isError, error } = useListMine();
+  const { setActiveOrganizationId } = useActiveOrganization();
 
   return (
     <View className="flex-1 bg-band">
@@ -59,7 +61,7 @@ export function OrganizationsDashboardScreen() {
           scrollEnabled={false}
           contentContainerStyle={{ gap: 12 }}
           renderItem={({ item }: { item: OrganizationResponseDto }) => (
-            <Link href={`/organizations/${item.id}`}>
+            <Link href={`/organizations/${item.id}`} onClick={() => item.id && setActiveOrganizationId(item.id)}>
               <View className="w-full gap-3 rounded-card-lg bg-background p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <View className="gap-1">
                   <Text className="font-serif text-[20px] font-bold text-foreground">
@@ -72,6 +74,9 @@ export function OrganizationsDashboardScreen() {
                 <View className="flex-row flex-wrap gap-2">
                   <Badge label={typeLabel(item.type)} variant="neutral" />
                   <Badge label={statusLabel(item.status)} variant={statusBadgeVariant(item.status)} />
+                  {item.myRole === OrganizationResponseDtoMyRole.MEMBER ? (
+                    <Badge label="Członek" variant="neutral" />
+                  ) : null}
                 </View>
               </View>
             </Link>

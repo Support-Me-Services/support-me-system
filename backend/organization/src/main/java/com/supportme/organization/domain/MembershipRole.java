@@ -1,6 +1,8 @@
 package com.supportme.organization.domain;
 
 public enum MembershipRole {
-    /** Can edit the ORG's about page, request/withdraw its deletion. Not a system-wide role. */
-    ADMINISTRATOR
+    /** Can edit the ORG's about page, request/withdraw its deletion, invite/remove members. Not a system-wide role. */
+    ADMINISTRATOR,
+    /** Joined via an accepted invitation. Read-only access to the organization's context - no management actions. */
+    MEMBER
 }

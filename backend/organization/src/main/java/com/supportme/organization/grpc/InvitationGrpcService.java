@@ -6,6 +6,8 @@ import com.supportme.proto.organization.v1.AcceptInvitationRequest;
 import com.supportme.proto.organization.v1.AcceptInvitationResponse;
 import com.supportme.proto.organization.v1.DeclineInvitationRequest;
 import com.supportme.proto.organization.v1.DeclineInvitationResponse;
+import com.supportme.proto.organization.v1.DeleteInvitationRequest;
+import com.supportme.proto.organization.v1.DeleteInvitationResponse;
 import com.supportme.proto.organization.v1.InvitationServiceGrpc;
 import com.supportme.proto.organization.v1.ListMyInvitationsRequest;
 import com.supportme.proto.organization.v1.ListMyInvitationsResponse;
@@ -85,6 +87,16 @@ public class InvitationGrpcService extends InvitationServiceGrpc.InvitationServi
             return DeclineInvitationResponse.newBuilder()
                     .setInvitation(InvitationMapper.toProto(invitation, ""))
                     .build();
+        });
+    }
+
+    @Override
+    public void deleteInvitation(DeleteInvitationRequest request, StreamObserver<DeleteInvitationResponse> responseObserver) {
+        handle(responseObserver, () -> {
+            UUID actorUserId = parseUuid(request.getActorUserId(), "actor_user_id");
+            UUID id = parseUuid(request.getId(), "id");
+            invitationService.delete(actorUserId, id);
+            return DeleteInvitationResponse.newBuilder().build();
         });
     }
 

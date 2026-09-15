@@ -17,9 +17,9 @@ import java.util.UUID;
 
 /**
  * Owns organization invitations: an ORG administrator invites a user by id (SCRUM-188); the
- * invited user accepts (joins as an ADMINISTRATOR member - the only MembershipRole this
- * codebase defines today, same role createOrg grants its creator) or declines (SCRUM-189). See
- * invitation.proto's service-level doc comment for the authorization split this follows.
+ * invited user accepts (joins as a MEMBER - limited rights, distinct from the ADMINISTRATOR
+ * role createOrg grants its creator) or declines (SCRUM-189). See invitation.proto's
+ * service-level doc comment for the authorization split this follows.
  */
 @Service
 public class InvitationService {
@@ -44,7 +44,7 @@ public class InvitationService {
             throw new InvalidOrganizationStateException(
                     "Action only applies to ORG organizations: " + organizationId);
         }
-        requireAdministrator(actorUserId, organization);
+        requireAdministrator(actorUserId, organization, "invite users to");
 
         if (membershipRepository.findByOrganizationIdAndUserId(organizationId, invitedUserId).isPresent()) {
             throw new AlreadyOrganizationMemberException(invitedUserId, organizationId);
@@ -94,7 +94,7 @@ public class InvitationService {
         invitation.accept(now);
         if (membershipRepository.findByOrganizationIdAndUserId(invitation.getOrganizationId(), actorUserId).isEmpty()) {
             membershipRepository.save(new OrganizationMembership(
-                    UUID.randomUUID(), invitation.getOrganizationId(), actorUserId, MembershipRole.ADMINISTRATOR, now));
+                    UUID.randomUUID(), invitation.getOrganizationId(), actorUserId, MembershipRole.MEMBER, now));
         }
         return invitation;
     }
@@ -112,6 +112,16 @@ public class InvitationService {
         return invitation;
     }
 
+    /** ORG administrator only. Removes an invitation the org has sent, regardless of its status. */
+    @Transactional
+    public void delete(UUID actorUserId, UUID invitationId) {
+        Invitation invitation = loadExisting(invitationId);
+        Organization organization = organizationRepository.findById(invitation.getOrganizationId())
+                .orElseThrow(() -> new OrganizationNotFoundException(invitation.getOrganizationId()));
+        requireAdministrator(actorUserId, organization, "delete invitations sent by");
+        invitationRepository.delete(invitation);
+    }
+
     private static void requirePending(Invitation invitation) {
         if (!invitation.isPending()) {
             throw new InvalidInvitationStateException(
@@ -119,11 +129,11 @@ public class InvitationService {
         }
     }
 
-    private void requireAdministrator(UUID actorUserId, Organization organization) {
+    private void requireAdministrator(UUID actorUserId, Organization organization, String action) {
         boolean isAdmin = membershipRepository.existsByOrganizationIdAndUserIdAndRole(
                 organization.getId(), actorUserId, MembershipRole.ADMINISTRATOR);
         if (!isAdmin) {
-            throw new OrganizationPermissionDeniedException(actorUserId, organization.getId(), "invite users to");
+            throw new OrganizationPermissionDeniedException(actorUserId, organization.getId(), action);
         }
     }
 

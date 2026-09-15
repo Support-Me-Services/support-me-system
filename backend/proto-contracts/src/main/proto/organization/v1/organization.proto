@@ -74,6 +74,14 @@ enum OrganizationStatus {
   ORGANIZATION_STATUS_DELETED = 3;
 }
 
+// ORG-only membership role (see OrganizationMembership) - IND organizations have no membership
+// table, their owner is always treated as ADMINISTRATOR-equivalent.
+enum MembershipRole {
+  MEMBERSHIP_ROLE_UNSPECIFIED = 0;
+  MEMBERSHIP_ROLE_ADMINISTRATOR = 1;
+  MEMBERSHIP_ROLE_MEMBER = 2;
+}
+
 // Full organization record, embedded in the per-RPC response envelopes below (kept as its own
 // message - rather than being an RPC response type itself - so it can be reused without
 // tripping buf's one-response-type-per-RPC lint rule).
@@ -115,6 +123,11 @@ message Organization {
 
   // Church role shown on the "Wizytówka" page (e.g. Proboszcz, Wikariusz, Kapelan, Diakon).
   string role = 17;
+
+  // Only populated by ListMyOrganizations (the RPC whose caller's relationship to the org
+  // varies per entry) - UNSPECIFIED on Get/Create/Update responses, where the caller already
+  // knows they have edit access (ADMINISTRATOR or IND owner) or the call would have failed.
+  MembershipRole my_role = 18;
 }
 
 message CreateOrganizationRequest {

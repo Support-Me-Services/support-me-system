@@ -5,6 +5,7 @@ import com.supportme.proto.organization.v1.AcceptInvitationRequest;
 import com.supportme.proto.organization.v1.AcceptInvitationResponse;
 import com.supportme.proto.organization.v1.DeclineInvitationRequest;
 import com.supportme.proto.organization.v1.DeclineInvitationResponse;
+import com.supportme.proto.organization.v1.DeleteInvitationRequest;
 import com.supportme.proto.organization.v1.InvitationServiceGrpc;
 import com.supportme.proto.organization.v1.ListMyInvitationsRequest;
 import com.supportme.proto.organization.v1.ListMyInvitationsResponse;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,5 +75,14 @@ public class InvitationController {
         DeclineInvitationResponse response = invitationServiceBlockingStub.declineInvitation(
                 DeclineInvitationRequest.newBuilder().setActorUserId(jwt.getSubject()).setId(id).build());
         return ResponseEntity.ok(InvitationDtoMapper.toDto(response.getInvitation()));
+    }
+
+    @Operation(summary = "Delete a sent invitation",
+            description = "Caller must administer the invitation's organization. Removes it regardless of status.")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        invitationServiceBlockingStub.deleteInvitation(
+                DeleteInvitationRequest.newBuilder().setActorUserId(jwt.getSubject()).setId(id).build());
+        return ResponseEntity.noContent().build();
     }
 }

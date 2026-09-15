@@ -74,8 +74,10 @@ public class OrganizationGrpcService extends OrganizationServiceGrpc.Organizatio
         handle(responseObserver, () -> {
             UUID actorUserId = parseUuid(request.getActorUserId(), "actor_user_id");
             UUID id = parseUuid(request.getId(), "id");
-            Organization organization = organizationService.getForActor(actorUserId, id);
-            return GetOrganizationResponse.newBuilder().setOrganization(OrganizationMapper.toProto(organization)).build();
+            OrganizationService.OrganizationWithRole result = organizationService.getForActor(actorUserId, id);
+            return GetOrganizationResponse.newBuilder()
+                    .setOrganization(OrganizationMapper.toProto(result.organization(), result.role()))
+                    .build();
         });
     }
 
@@ -83,9 +85,10 @@ public class OrganizationGrpcService extends OrganizationServiceGrpc.Organizatio
     public void listMyOrganizations(ListMyOrganizationsRequest request, StreamObserver<ListMyOrganizationsResponse> responseObserver) {
         handle(responseObserver, () -> {
             UUID actorUserId = parseUuid(request.getActorUserId(), "actor_user_id");
-            List<Organization> organizations = organizationService.listMine(actorUserId);
+            List<OrganizationService.OrganizationWithRole> organizations = organizationService.listMine(actorUserId);
             ListMyOrganizationsResponse.Builder builder = ListMyOrganizationsResponse.newBuilder();
-            organizations.forEach(org -> builder.addOrganizations(OrganizationMapper.toProto(org)));
+            organizations.forEach(entry -> builder.addOrganizations(
+                    OrganizationMapper.toProto(entry.organization(), entry.role())));
             return builder.build();
         });
     }

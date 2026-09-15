@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCreate, getListMineQueryKey, CreateOrganizationRequestDtoType } from "@support-me/api-client";
 import { Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
+import { useActiveOrganization } from "./active-organization";
 
 type OrgType = "IND" | "ORG";
 
@@ -26,6 +27,7 @@ const TYPE_OPTIONS: Array<{ value: OrgType; label: string; description: string }
 export function CreateOrganizationScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { setActiveOrganizationId } = useActiveOrganization();
   const { mutateAsync, isPending, error } = useCreate({
     mutation: {
       // Without this, the dashboard's `useListMine()` keeps serving its cached
@@ -58,6 +60,7 @@ export function CreateOrganizationScreen() {
       },
     });
     if (created.id) {
+      setActiveOrganizationId(created.id);
       router.push(`/organizations/${created.id}`);
     }
   };

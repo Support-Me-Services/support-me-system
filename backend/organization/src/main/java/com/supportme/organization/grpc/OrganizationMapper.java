@@ -1,6 +1,7 @@
 package com.supportme.organization.grpc;
 
 import com.google.protobuf.Timestamp;
+import com.supportme.organization.domain.MembershipRole;
 import com.supportme.organization.domain.Organization;
 import com.supportme.proto.organization.v1.OrganizationStatus;
 import com.supportme.proto.organization.v1.OrganizationType;
@@ -13,7 +14,12 @@ final class OrganizationMapper {
     private OrganizationMapper() {
     }
 
+    /** actorRole is unset (UNSPECIFIED) unless the caller knows the actor's role in this org - see ListMyOrganizations. */
     static com.supportme.proto.organization.v1.Organization toProto(Organization organization) {
+        return toProto(organization, null);
+    }
+
+    static com.supportme.proto.organization.v1.Organization toProto(Organization organization, MembershipRole actorRole) {
         com.supportme.proto.organization.v1.Organization.Builder builder =
                 com.supportme.proto.organization.v1.Organization.newBuilder()
                         .setId(organization.getId().toString())
@@ -38,7 +44,17 @@ final class OrganizationMapper {
         if (organization.getDeletionRequestedAt() != null) {
             builder.setDeletionRequestedAt(toTimestamp(organization.getDeletionRequestedAt()));
         }
+        if (actorRole != null) {
+            builder.setMyRole(toProtoRole(actorRole));
+        }
         return builder.build();
+    }
+
+    private static com.supportme.proto.organization.v1.MembershipRole toProtoRole(MembershipRole role) {
+        return switch (role) {
+            case ADMINISTRATOR -> com.supportme.proto.organization.v1.MembershipRole.MEMBERSHIP_ROLE_ADMINISTRATOR;
+            case MEMBER -> com.supportme.proto.organization.v1.MembershipRole.MEMBERSHIP_ROLE_MEMBER;
+        };
     }
 
     static com.supportme.organization.domain.OrganizationType toDomainType(OrganizationType type) {

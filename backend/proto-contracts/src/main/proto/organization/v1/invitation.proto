@@ -33,6 +33,11 @@ service InvitationService {
   // Invited user only. Idempotent: declining an already-DECLINED invitation returns it
   // unchanged rather than erroring.
   rpc DeclineInvitation(DeclineInvitationRequest) returns (DeclineInvitationResponse);
+
+  // ORG administrator only. Permanently removes an invitation the organization sent, regardless
+  // of its status (PENDING/ACCEPTED/DECLINED). Fails with PERMISSION_DENIED if the actor doesn't
+  // administer the invitation's organization.
+  rpc DeleteInvitation(DeleteInvitationRequest) returns (DeleteInvitationResponse);
 }
 
 enum InvitationStatus {
@@ -110,4 +115,12 @@ message DeclineInvitationRequest {
 
 message DeclineInvitationResponse {
   Invitation invitation = 1;
+}
+
+message DeleteInvitationRequest {
+  string actor_user_id = 1;
+  string id = 2;
+}
+
+message DeleteInvitationResponse {
 }

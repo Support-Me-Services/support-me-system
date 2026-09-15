@@ -4,7 +4,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { Link } from "solito/link";
 import { useAuth } from "@support-me/auth";
-import { useGet, useUpdateContactInfo, OrganizationResponseDtoType } from "@support-me/api-client";
+import {
+  useGet,
+  useUpdateContactInfo,
+  OrganizationResponseDtoType,
+  OrganizationResponseDtoMyRole,
+} from "@support-me/api-client";
 import { Badge, Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 
@@ -35,6 +40,10 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
   const updateContactInfo = useUpdateContactInfo();
 
   const isIndividual = organization?.type === OrganizationResponseDtoType.IND;
+  // Same "MEMBER = read-only" rule as detail-screen.tsx - defaults to true (admin) until the
+  // organization loads, and for a user's own IND profile (organizationId unset), where it's
+  // always the account owner editing.
+  const isAdmin = organization?.myRole !== OrganizationResponseDtoMyRole.MEMBER;
   const profileTitle = !organizationId
     ? "Profil"
     : isIndividual
@@ -168,7 +177,7 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
               </View>
             )}
           </View>
-          {organizationId ? (
+          {organizationId && isAdmin ? (
             <>
               {updateContactInfo.isError ? (
                 <Text className="font-sans text-danger">{getErrorMessage(updateContactInfo.error)}</Text>
@@ -213,7 +222,7 @@ export function AccountSettingsScreen({ organizationId }: AccountSettingsScreenP
             <View className="gap-1.5 sm:flex-1">
               <View className="flex-row items-center justify-between">
                 <Text className="font-sans text-[12px] font-medium text-muted">Numer telefonu</Text>
-                {organizationId ? (
+                {organizationId && isAdmin ? (
                   <Pressable
                     onPress={isEditingContact ? handleAcceptContact : () => setIsEditingContact(true)}
                     disabled={updateContactInfo.isPending}

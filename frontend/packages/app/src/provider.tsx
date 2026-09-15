@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@support-me/auth";
+import { ActiveOrganizationProvider } from "./features/organizations/active-organization";
 
 /**
  * Single shared provider tree used by BOTH apps/web (Next.js App Router
@@ -29,7 +30,9 @@ export function Provider({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ActiveOrganizationProvider>{children}</ActiveOrganizationProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

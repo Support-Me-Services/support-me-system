@@ -2,7 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useSearch, useSendInvitation, type UserSearchResultDto } from "@support-me/api-client";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useSearch,
+  useSendInvitation,
+  getListSentQueryKey,
+  type UserSearchResultDto,
+} from "@support-me/api-client";
 import { Avatar, Badge, Input, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 
@@ -27,6 +33,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
  * organizations) - this is just the UI for it.
  */
 export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query.trim(), 300);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
@@ -43,7 +50,14 @@ export function InviteMembersPanel({ organizationId }: InviteMembersPanelProps) 
     { query: { enabled: debouncedQuery.length >= 2 } },
   );
 
-  const sendInvitation = useSendInvitation();
+  const sendInvitation = useSendInvitation({
+    mutation: {
+      // Without this, OrgSentInvitationsPanel (this same "Zaproszenia" tab, just below) and the
+      // global SentInvitationsScreen keep serving their cached list until it goes stale, so a
+      // just-sent invitation doesn't show up there until a manual refresh.
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSentQueryKey() }),
+    },
+  });
 
   const handleSend = async () => {
     if (!selectedUser?.id) return;

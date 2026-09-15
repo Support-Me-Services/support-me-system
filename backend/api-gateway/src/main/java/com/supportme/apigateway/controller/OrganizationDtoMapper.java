@@ -1,10 +1,12 @@
 package com.supportme.apigateway.controller;
 
+import com.supportme.apigateway.dto.MembershipRoleDto;
 import com.supportme.apigateway.dto.OrganizationResponseDto;
 import com.supportme.apigateway.dto.OrganizationStatusDto;
 import com.supportme.apigateway.dto.OrganizationTypeDto;
 import com.supportme.apigateway.dto.PublicAboutPageResponseDto;
 import com.supportme.proto.organization.v1.GetPublicAboutPageResponse;
+import com.supportme.proto.organization.v1.MembershipRole;
 import com.supportme.proto.organization.v1.Organization;
 
 import java.time.Instant;
@@ -33,7 +35,16 @@ final class OrganizationDtoMapper {
                 blankToNull(organization.getDeletionRequestedBy()),
                 organization.hasDeletionRequestedAt() ? toInstant(organization.getDeletionRequestedAt()) : null,
                 toInstant(organization.getCreatedAt()),
-                toInstant(organization.getUpdatedAt()));
+                toInstant(organization.getUpdatedAt()),
+                toRoleDto(organization.getMyRole()));
+    }
+
+    private static MembershipRoleDto toRoleDto(MembershipRole role) {
+        return switch (role) {
+            case MEMBERSHIP_ROLE_ADMINISTRATOR -> MembershipRoleDto.ADMINISTRATOR;
+            case MEMBERSHIP_ROLE_MEMBER -> MembershipRoleDto.MEMBER;
+            case MEMBERSHIP_ROLE_UNSPECIFIED, UNRECOGNIZED -> null;
+        };
     }
 
     static PublicAboutPageResponseDto toPublicDto(GetPublicAboutPageResponse response) {

@@ -92,24 +92,35 @@ public class OrganizationService {
     }
 
     @Transactional(readOnly = true)
-    public Organization getForActor(UUID actorUserId, UUID organizationId) {
+    public OrganizationWithRole getForActor(UUID actorUserId, UUID organizationId) {
         Organization organization = loadExisting(organizationId);
         requireViewAccess(actorUserId, organization);
-        return organization;
+        MembershipRole role = organization.isIndividual()
+                ? MembershipRole.ADMINISTRATOR
+                : membershipRepository.findByOrganizationIdAndUserId(organizationId, actorUserId)
+                        .map(OrganizationMembership::getRole)
+                        .orElse(MembershipRole.ADMINISTRATOR);
+        return new OrganizationWithRole(organization, role);
     }
 
+    /** Every organization the actor owns (as ADMINISTRATOR-equivalent) or is a member of, each tagged with their role. */
     @Transactional(readOnly = true)
-    public List<Organization> listMine(UUID actorUserId) {
-        List<Organization> owned = organizationRepository.findByOwnerUserIdAndTypeAndStatusNot(
-                actorUserId, OrganizationType.IND, OrganizationStatus.DELETED);
-
-        List<Organization> administered = membershipRepository.findByUserId(actorUserId).stream()
-                .filter(membership -> membership.getRole() == MembershipRole.ADMINISTRATOR)
-                .map(membership -> organizationRepository.findById(membership.getOrganizationId()).orElse(null))
-                .filter(org -> org != null && org.getStatus() != OrganizationStatus.DELETED)
+    public List<OrganizationWithRole> listMine(UUID actorUserId) {
+        List<OrganizationWithRole> owned = organizationRepository.findByOwnerUserIdAndTypeAndStatusNot(
+                actorUserId, OrganizationType.IND, OrganizationStatus.DELETED).stream()
+                .map(org -> new OrganizationWithRole(org, MembershipRole.ADMINISTRATOR))
                 .toList();
 
-        return java.util.stream.Stream.concat(owned.stream(), administered.stream()).toList();
+        List<OrganizationWithRole> memberOf = membershipRepository.findByUserId(actorUserId).stream()
+                .map(membership -> {
+                    Organization org = organizationRepository.findById(membership.getOrganizationId()).orElse(null);
+                    return org == null || org.getStatus() == OrganizationStatus.DELETED
+                            ? null : new OrganizationWithRole(org, membership.getRole());
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        return java.util.stream.Stream.concat(owned.stream(), memberOf.stream()).toList();
     }
 
     @Transactional
@@ -230,11 +241,19 @@ public class OrganizationService {
 
     // -- access control -------------------------------------------------------------------
 
+    /** ORG: any member (ADMINISTRATOR or MEMBER) can view - see requireEditAccess for the narrower, admin-only set of actions. */
     private void requireViewAccess(UUID actorUserId, Organization organization) {
         if (organization.isIndividual()) {
             requireOwner(actorUserId, organization, "view");
         } else {
-            requireAdministrator(actorUserId, organization, "view");
+            requireMembership(actorUserId, organization, "view");
+        }
+    }
+
+    private void requireMembership(UUID actorUserId, Organization organization, String action) {
+        boolean isMember = membershipRepository.findByOrganizationIdAndUserId(organization.getId(), actorUserId).isPresent();
+        if (!isMember) {
+            throw new OrganizationPermissionDeniedException(actorUserId, organization.getId(), action);
         }
     }
 
@@ -284,5 +303,8 @@ public class OrganizationService {
     }
 
     public record StartDeletionResult(UUID confirmationToken, Instant expiresAt) {
+    }
+
+    public record OrganizationWithRole(Organization organization, MembershipRole role) {
     }
 }

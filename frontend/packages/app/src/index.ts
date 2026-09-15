@@ -6,6 +6,8 @@ export type { AppShellProps } from "./AppShell";
 export { RequireAuth } from "./RequireAuth";
 export type { RequireAuthProps } from "./RequireAuth";
 
+export { useActiveOrganization } from "./features/organizations/active-organization";
+export type { ActiveOrganizationContextValue } from "./features/organizations/active-organization";
 export { OrganizationsDashboardScreen } from "./features/organizations/dashboard-screen";
 export { CreateOrganizationScreen } from "./features/organizations/create-screen";
 export { OrganizationDetailScreen } from "./features/organizations/detail-screen";

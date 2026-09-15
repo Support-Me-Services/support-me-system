@@ -13,11 +13,14 @@ import {
   useWithdrawDeletionRequest,
   OrganizationResponseDtoType,
   OrganizationResponseDtoStatus,
+  OrganizationResponseDtoMyRole,
   type DeletionConfirmationStartedDto,
 } from "@support-me/api-client";
 import { Badge, HtmlContent, Input, RichTextEditor, Spinner } from "@support-me/ui";
 import { getErrorMessage } from "../../lib/errors";
 import { InviteMembersPanel } from "./invite-members-panel";
+import { OrgSentInvitationsPanel } from "../invitations/org-sent-invitations-panel";
+import { useActiveOrganization } from "./active-organization";
 import { statusBadgeVariant, statusLabel } from "./shared";
 
 export interface OrganizationDetailScreenProps {
@@ -72,15 +75,6 @@ function FadingSaved({ trigger }: { trigger: boolean }) {
   );
 }
 
-type Tab = "wizytowka" | "kontakt" | "zaproszenia" | "usuwanie";
-
-const NAV_ITEMS: { key: Tab; label: string }[] = [
-  { key: "wizytowka", label: "Wizytówka" },
-  { key: "kontakt", label: "Informacja kontaktowa" },
-  { key: "zaproszenia", label: "Zaproszenia" },
-  { key: "usuwanie", label: "Usuwanie" },
-];
-
 const ROLE_OPTIONS = ["Proboszcz", "Wikariusz", "Kapelan", "Diakon"];
 
 export function OrganizationDetailScreen({ organizationId }: OrganizationDetailScreenProps) {
@@ -93,7 +87,10 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
   const requestDeletion = useRequestDeletion();
   const withdrawDeletionRequest = useWithdrawDeletionRequest();
 
-  const [activeTab, setActiveTab] = useState<Tab>("wizytowka");
+  // Which section is showing lives in ActiveOrganizationProvider now, not local state - AppShell
+  // renders the tab list itself (OrgSectionNav, merged into its one persistent sidebar) and this
+  // screen just reads which one is selected.
+  const { orgSectionTab: activeTab } = useActiveOrganization();
 
   const [titleDraft, setTitleDraft] = useState("");
   const [bodyDraft, setBodyDraft] = useState("");
@@ -136,6 +133,10 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
   const isIndividual = organization.type === OrganizationResponseDtoType.IND;
   const isDeleted = organization.status === OrganizationResponseDtoStatus.DELETED;
   const isPendingDeletion = organization.status === OrganizationResponseDtoStatus.PENDING_DELETION;
+  // A MEMBER (joined via an accepted invitation) gets read-only access to this context - no
+  // editing, no invitations, no deletion. Defaults to true (admin) when myRole is unset, since
+  // that only happens for an IND organization's own owner, who always has full rights.
+  const isAdmin = organization.myRole !== OrganizationResponseDtoMyRole.MEMBER;
 
   const handleSaveAbout = async () => {
     setJustSaved(false);
@@ -209,13 +210,9 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
 
   return (
     <View className="flex-1 bg-background">
-      <View className="mx-auto w-full max-w-[900px] gap-4 p-6 py-10">
+      <View className="mx-auto w-full max-w-[700px] gap-4 p-6 py-10">
         <View className="border-b border-line pb-2 sm:flex-row sm:items-center sm:justify-between sm:border-b-0 sm:pb-0">
-          <Link href="/organizations">
-            <Text className="self-start py-2 font-sans text-[14px] font-semibold text-accent">
-              ← Wróć do Moje organizacje
-            </Text>
-          </Link>
+          <Text className="font-serif text-[20px] font-bold text-foreground">{organization.name}</Text>
           <Link href={`/organizations/${organizationId}/account`}>
             <Text className="self-end py-2 font-sans text-[14px] font-semibold text-accent sm:self-auto">
               Zarządzanie kontem →
@@ -223,40 +220,9 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
           </Link>
         </View>
 
-        <View className="gap-6 sm:flex-row sm:gap-10">
-        {/* Left menu - this organization's own sections. Stacked full-width above the
-            content on narrow screens; a fixed-width column beside it from sm: up. */}
-        <View className="gap-2 sm:w-[220px]">
-          <Text className="font-serif text-[17px] font-bold text-foreground">
-            {organization.name}
-          </Text>
-          <View className="flex-row flex-wrap gap-2 rounded-card-lg border border-line bg-background p-2 shadow-sm sm:flex-col sm:flex-nowrap sm:gap-1">
-            {NAV_ITEMS.filter((item) => item.key !== "zaproszenia" || !isIndividual).map((item) => {
-              const active = item.key === activeTab;
-              return (
-                <Pressable
-                  key={item.key}
-                  onPress={() => setActiveTab(item.key)}
-                  className={`self-start rounded-pill px-3 py-2 ${active ? "bg-accent/10" : ""}`}
-                >
-                  {/* font-medium stays constant across states - only color changes - so an
-                      item's glyph width doesn't shift and reflow its neighbors in this
-                      flex-wrap row when the active tab changes. */}
-                  <Text
-                    className={`font-sans text-[14px] font-medium ${
-                      active ? "text-accent" : "text-foreground"
-                    }`}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        {!isIndividual && !isAdmin ? <Badge label="Członek - ograniczone prawa" variant="neutral" /> : null}
 
-        {/* Content */}
-        <View className="flex-1 gap-4">
+        <View className="gap-4">
 
           {activeTab === "wizytowka" ? (
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
@@ -309,33 +275,36 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                 <Text className="font-sans text-danger">{getErrorMessage(updateAboutPage.error)}</Text>
               ) : null}
 
-              <View className="flex-row items-center gap-3">
-                {isEditingAbout ? (
-                  <Pressable
-                    onPress={handleAcceptAbout}
-                    disabled={updateAboutPage.isPending}
-                    className={`items-center justify-center self-start rounded-pill bg-accent px-6 py-3 ${
-                      updateAboutPage.isPending ? "opacity-50" : ""
-                    }`}
-                  >
-                    <Text className="font-sans text-[14px] font-semibold text-accent-foreground">
-                      {updateAboutPage.isPending ? "Zapisywanie…" : "Zaakceptuj"}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    onPress={() => setIsEditingAbout(true)}
-                    className="items-center justify-center self-start rounded-pill border border-accent px-6 py-3"
-                  >
-                    <Text className="font-sans text-[14px] font-semibold text-accent">Zmień</Text>
-                  </Pressable>
-                )}
-                {!isEditingAbout ? <FadingSaved trigger={justSaved} /> : null}
-              </View>
+              {isAdmin ? (
+                <View className="flex-row items-center gap-3">
+                  {isEditingAbout ? (
+                    <Pressable
+                      onPress={handleAcceptAbout}
+                      disabled={updateAboutPage.isPending}
+                      className={`items-center justify-center self-start rounded-pill bg-accent px-6 py-3 ${
+                        updateAboutPage.isPending ? "opacity-50" : ""
+                      }`}
+                    >
+                      <Text className="font-sans text-[14px] font-semibold text-accent-foreground">
+                        {updateAboutPage.isPending ? "Zapisywanie…" : "Zaakceptuj"}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      onPress={() => setIsEditingAbout(true)}
+                      className="items-center justify-center self-start rounded-pill border border-accent px-6 py-3"
+                    >
+                      <Text className="font-sans text-[14px] font-semibold text-accent">Zmień</Text>
+                    </Pressable>
+                  )}
+                  {!isEditingAbout ? <FadingSaved trigger={justSaved} /> : null}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
-          {activeTab === "kontakt" ? (
+          {activeTab === "zarzadzanie" ? (
+            <View className="gap-4">
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
               <View className="flex-row flex-wrap items-center gap-3">
                 <Text className="font-serif text-[20px] font-bold text-foreground">
@@ -400,37 +369,33 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                 <Text className="font-sans text-danger">{getErrorMessage(updateContactInfo.error)}</Text>
               ) : null}
 
-              <View className="flex-row items-center gap-3">
-                {isEditingContact ? (
-                  <Pressable
-                    onPress={handleAcceptContact}
-                    disabled={updateContactInfo.isPending}
-                    className={`items-center justify-center self-start rounded-pill bg-accent px-6 py-3 ${
-                      updateContactInfo.isPending ? "opacity-50" : ""
-                    }`}
-                  >
-                    <Text className="font-sans text-[14px] font-semibold text-accent-foreground">
-                      {updateContactInfo.isPending ? "Zapisywanie…" : "Zaakceptuj"}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    onPress={() => setIsEditingContact(true)}
-                    className="items-center justify-center self-start rounded-pill border border-accent px-6 py-3"
-                  >
-                    <Text className="font-sans text-[14px] font-semibold text-accent">Zmień</Text>
-                  </Pressable>
-                )}
-                {!isEditingContact ? <FadingSaved trigger={contactJustSaved} /> : null}
-              </View>
+              {isAdmin ? (
+                <View className="flex-row items-center gap-3">
+                  {isEditingContact ? (
+                    <Pressable
+                      onPress={handleAcceptContact}
+                      disabled={updateContactInfo.isPending}
+                      className={`items-center justify-center self-start rounded-pill bg-accent px-6 py-3 ${
+                        updateContactInfo.isPending ? "opacity-50" : ""
+                      }`}
+                    >
+                      <Text className="font-sans text-[14px] font-semibold text-accent-foreground">
+                        {updateContactInfo.isPending ? "Zapisywanie…" : "Zaakceptuj"}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      onPress={() => setIsEditingContact(true)}
+                      className="items-center justify-center self-start rounded-pill border border-accent px-6 py-3"
+                    >
+                      <Text className="font-sans text-[14px] font-semibold text-accent">Zmień</Text>
+                    </Pressable>
+                  )}
+                  {!isEditingContact ? <FadingSaved trigger={contactJustSaved} /> : null}
+                </View>
+              ) : null}
             </View>
-          ) : null}
 
-          {activeTab === "zaproszenia" && !isIndividual ? (
-            <InviteMembersPanel organizationId={organizationId} />
-          ) : null}
-
-          {activeTab === "usuwanie" ? (
             <View className="gap-4 rounded-card-lg bg-background p-6 shadow-sm">
               <View className="flex-row flex-wrap items-center gap-3">
                 <Text className="font-serif text-[20px] font-bold text-foreground">
@@ -506,8 +471,15 @@ export function OrganizationDetailScreen({ organizationId }: OrganizationDetailS
                 </Pressable>
               )}
             </View>
+            </View>
           ) : null}
-        </View>
+
+          {activeTab === "czlonkowie" && !isIndividual && isAdmin ? (
+            <View className="gap-4">
+              <InviteMembersPanel organizationId={organizationId} />
+              <OrgSentInvitationsPanel organizationId={organizationId} />
+            </View>
+          ) : null}
         </View>
       </View>
     </View>

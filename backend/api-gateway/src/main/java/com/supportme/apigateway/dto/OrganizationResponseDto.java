@@ -24,6 +24,8 @@ public record OrganizationResponseDto(
         String deletionRequestedBy,
         Instant deletionRequestedAt,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        @Schema(description = "The caller's role in this organization. Only populated when listing \"my organizations\"; null elsewhere (the caller already has edit access or the call would have failed).")
+        MembershipRoleDto myRole
 ) {
 }

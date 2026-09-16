@@ -20,41 +20,25 @@ output "all_hostnames" {
   value = local.all_hosts
 }
 
-output "organization_db_connection_name" {
-  value = module.organization_db.connection_name
-}
-
-output "initialization_db_connection_name" {
-  value = module.initialization_db.connection_name
-}
-
+# Single shared instance for all 3 services now (see main.tf's consolidation note) - still named
+# "auth_db"/"auth-db" throughout since that's the instance/module that predates the consolidation
+# and already holds real prod data; renaming it would mean recreating it.
 output "auth_db_connection_name" {
   value = module.auth_db.connection_name
 }
 
-# Private IPs, consumed by infra/scripts/render-k8s-manifests.sh to fill in
-# ${ORGANIZATION_DB_HOST} / ${INITIALIZATION_DB_HOST} / ${AUTH_DB_HOST} in the Deployment specs.
-output "organization_db_private_ip" {
-  value = module.organization_db.private_ip_address
-}
-
-output "initialization_db_private_ip" {
-  value = module.initialization_db.private_ip_address
+# Private IP, consumed by infra/scripts/render-k8s-manifests.sh to fill in ${SHARED_DB_HOST}
+# (organization/initialization) and ${AUTH_DB_HOST} (auth) in the Deployment specs - same value,
+# two names, since organization/initialization/auth all connect to the same instance.
+output "shared_db_private_ip" {
+  value = module.auth_db.private_ip_address
 }
 
 output "auth_db_private_ip" {
   value = module.auth_db.private_ip_address
 }
 
-# Instance names, consumed by infra/scripts/backup-on-demand.sh (`gcloud sql backups create`).
-output "organization_db_instance_name" {
-  value = module.organization_db.instance_name
-}
-
-output "initialization_db_instance_name" {
-  value = module.initialization_db.instance_name
-}
-
+# Instance name, consumed by infra/scripts/backup-on-demand.sh (`gcloud sql backups create`).
 output "auth_db_instance_name" {
   value = module.auth_db.instance_name
 }

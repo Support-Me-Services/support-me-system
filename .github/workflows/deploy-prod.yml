@@ -31,8 +31,7 @@ jobs:
       ingress_ip_name: ${{ steps.tf-outputs.outputs.ingress_ip_name }}
       project_number: ${{ steps.tf-outputs.outputs.project_number }}
       workload_service_account_email: ${{ steps.tf-outputs.outputs.workload_service_account_email }}
-      organization_db_private_ip: ${{ steps.tf-outputs.outputs.organization_db_private_ip }}
-      initialization_db_private_ip: ${{ steps.tf-outputs.outputs.initialization_db_private_ip }}
+      shared_db_private_ip: ${{ steps.tf-outputs.outputs.shared_db_private_ip }}
       auth_db_private_ip: ${{ steps.tf-outputs.outputs.auth_db_private_ip }}
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +67,7 @@ jobs:
             echo "ingress_ip_name=$(terraform output -raw ingress_ip_name)"
             echo "project_number=$(terraform output -raw project_number)"
             echo "workload_service_account_email=$(terraform output -raw workload_service_account_email)"
-            echo "organization_db_private_ip=$(terraform output -raw organization_db_private_ip)"
-            echo "initialization_db_private_ip=$(terraform output -raw initialization_db_private_ip)"
+            echo "shared_db_private_ip=$(terraform output -raw shared_db_private_ip)"
             echo "auth_db_private_ip=$(terraform output -raw auth_db_private_ip)"
           } >> "$GITHUB_OUTPUT"
 
@@ -100,7 +98,7 @@ jobs:
       # bit-for-bit what actually served the spec, and there's only one build path to keep
       # working.
       - name: Build and start the backend stack
-        run: docker compose up -d --build organization-db initialization-db auth-db auth organization initialization api-gateway
+        run: docker compose up -d --build db auth organization initialization api-gateway
 
       - name: Wait for api-gateway to serve its OpenAPI spec
         run: |
@@ -178,12 +176,25 @@ jobs:
             kustomize edit set image "$svc=${{ env.REGISTRY }}/$svc:$TAG"
           done
 
+      # Standalone step, not part of infra/k8s/base/kustomization.yaml's steady-state resources -
+      # see infra/k8s/base/db-init/job.yaml's comment for why this needs to run (and complete)
+      # here, before organization/initialization roll out, rather than via Terraform.
+      - name: Create organization/initialization schemas on the shared DB
+        env:
+          GCP_PROJECT_NUMBER: ${{ needs.terraform.outputs.project_number }}
+          WORKLOAD_GSA_EMAIL: ${{ needs.terraform.outputs.workload_service_account_email }}
+          AUTH_DB_HOST: ${{ needs.terraform.outputs.auth_db_private_ip }}
+        run: |
+          kubectl delete job db-init -n support-me --ignore-not-found
+          envsubst < infra/k8s/base/db-init/secretproviderclass.yaml | kubectl apply -f -
+          envsubst < infra/k8s/base/db-init/job.yaml | kubectl apply -f -
+          kubectl wait --for=condition=complete job/db-init -n support-me --timeout=2m
+
       - name: Render and apply manifests
         env:
           GCP_PROJECT_NUMBER: ${{ needs.terraform.outputs.project_number }}
           WORKLOAD_GSA_EMAIL: ${{ needs.terraform.outputs.workload_service_account_email }}
-          ORGANIZATION_DB_HOST: ${{ needs.terraform.outputs.organization_db_private_ip }}
-          INITIALIZATION_DB_HOST: ${{ needs.terraform.outputs.initialization_db_private_ip }}
+          SHARED_DB_HOST: ${{ needs.terraform.outputs.shared_db_private_ip }}
           AUTH_DB_HOST: ${{ needs.terraform.outputs.auth_db_private_ip }}
           INGRESS_IP_NAME: ${{ needs.terraform.outputs.ingress_ip_name }}
         run: kubectl kustomize infra/k8s/overlays/prod | envsubst | kubectl apply -f -

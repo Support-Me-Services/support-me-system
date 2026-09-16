@@ -45,7 +45,7 @@ variable "tier" {
 }
 
 variable "availability_type" {
-  description = "ZONAL (cheaper, single zone) or REGIONAL (synchronous standby in a second zone, higher cost). Start ZONAL; move auth/organization to REGIONAL first if uptime requirements tighten."
+  description = "ZONAL (cheaper, single zone) or REGIONAL (synchronous standby in a second zone, higher cost). auth_db (now shared by all 3 services) already runs REGIONAL - see environments/prod/main.tf."
   type        = string
   default     = "ZONAL"
 }

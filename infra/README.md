@@ -141,8 +141,10 @@ git push origin v1.2.3
 
 ## Backups (SCRUM-185 acceptance criteria)
 
-- **Cloud SQL** (all 3 instances): automatic daily backup + point-in-time recovery, configured in
-  `modules/cloudsql`. On-demand: `./scripts/backup-on-demand.sh`.
+- **Cloud SQL** (the one shared instance - see
+  `infra/terraform/environments/prod/main.tf`'s consolidation note): automatic daily backup +
+  point-in-time recovery, configured in `modules/cloudsql`. On-demand:
+  `./scripts/backup-on-demand.sh`.
 - **User-uploaded files** (`modules/storage`): daily Storage Transfer job copies the uploads
   bucket to a backup bucket in a second region, plus object versioning on the primary bucket.
   On-demand: same script, which also triggers an immediate transfer run.

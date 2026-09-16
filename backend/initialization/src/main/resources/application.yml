@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://localhost:5433/initialization_db
+    url: jdbc:postgresql://localhost:5432/keycloak_db?currentSchema=initialization
     username: initialization
     password: initialization
   jpa:

@@ -26,8 +26,11 @@ spec:
               name: grpc
           env:
             - name: SPRING_DATASOURCE_URL
-              # ${ORGANIZATION_DB_HOST} = organization_db module's private_ip_address output.
-              value: jdbc:postgresql://${ORGANIZATION_DB_HOST}:5432/organization_db
+              # ${SHARED_DB_HOST} = auth_db module's private_ip_address output - organization now
+              # shares that instance/database, confined to its own schema (see
+              # infra/k8s/base/db-init/job.yaml and infra/terraform/environments/prod/main.tf's
+              # consolidation note).
+              value: jdbc:postgresql://${SHARED_DB_HOST}:5432/keycloak_db?currentSchema=organization
             - name: SPRING_DATASOURCE_USERNAME
               value: organization
             - name: SPRING_DATASOURCE_PASSWORD

@@ -1,0 +1,83 @@
+# One-off schema/role setup for the shared Cloud SQL instance (see
+# infra/terraform/environments/prod/main.tf's consolidation note) - CREATE SCHEMA / GRANT can only
+# happen over an actual psql connection, which the Terraform runner can't open (private-IP-only
+# instance, runner outside the VPC). This Job runs inside the cluster instead, same as any app
+# pod. Applied as a standalone step in .github/workflows/deploy-prod.yml (deleted and recreated
+# each deploy), NOT part of infra/k8s/base/kustomization.yaml's steady-state resources - it must
+# run, and complete, before the organization/initialization Deployments roll out on a fresh
+# consolidation, whereas kustomize's single `kubectl apply` has no built-in "run this Job to
+# completion before that Deployment" ordering.
+#
+# Every statement below is written to be safe to re-run: organization/initialization's Postgres
+# roles already exist by this point (created by modules/cloudsql_user via the Cloud SQL Admin API,
+# which runs as part of `terraform apply`, before this Job).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-init
+  namespace: support-me
+  annotations:
+    iam.gke.io/gcp-service-account: ${WORKLOAD_GSA_EMAIL}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-sql
+  namespace: support-me
+data:
+  init.sql: |
+    CREATE SCHEMA IF NOT EXISTS organization AUTHORIZATION organization;
+    CREATE SCHEMA IF NOT EXISTS initialization AUTHORIZATION initialization;
+    ALTER ROLE organization SET search_path = organization;
+    ALTER ROLE initialization SET search_path = initialization;
+    REVOKE CREATE ON SCHEMA public FROM organization, initialization;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+  namespace: support-me
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: db-init
+      restartPolicy: Never
+      containers:
+        - name: db-init
+          image: postgres:17
+          command:
+            - psql
+            - -v
+            - ON_ERROR_STOP=1
+            - -h
+            - ${AUTH_DB_HOST}
+            - -U
+            - keycloak
+            - -d
+            - keycloak_db
+            - -f
+            - /sql/init.sql
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-init-db-credentials
+                  key: password
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+            - name: secrets-store
+              mountPath: /mnt/secrets
+              readOnly: true
+      volumes:
+        - name: sql
+          configMap:
+            name: db-init-sql
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: db-init-secret

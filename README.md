@@ -30,7 +30,7 @@ support-me-system/
 | API Gateway | Spring Boot, REST + springdoc/Swagger, OAuth2 resource server (validates Keycloak JWTs) |
 | Domain services | `organization` (CMS, business card, recruitment, shop, fundraising) and `initialization` (QR/NFC/email/SMS entry points) — Spring Boot, gRPC servers, PostgreSQL + Liquibase |
 | Inter-service comms | gRPC (Spring gRPC, blocking stubs + virtual threads); external traffic only via api-gateway's REST API |
-| Data | One PostgreSQL *instance* per service (+ Keycloak's own) - not just a logical database on a shared cluster, so no service shares credentials or blast radius with another |
+| Data | One shared PostgreSQL instance/database (incl. Keycloak's), one schema + one low-privilege role per service - no shared superuser, isolation at the schema level instead of a dedicated instance per service |
 | Local dev infra | Docker Compose | **Production infra** | Kubernetes |
 | CI/CD | GitHub Actions | **Observability** | OpenTelemetry + Grafana (Prometheus/Loki/Tempo) |
 

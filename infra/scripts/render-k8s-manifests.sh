@@ -9,6 +9,13 @@
 #   ./infra/scripts/render-k8s-manifests.sh > /tmp/support-me-prod.yaml
 #   kubectl apply -f /tmp/support-me-prod.yaml
 #
+# On a fresh consolidation (see infra/terraform/environments/prod/main.tf), also apply
+# infra/k8s/base/db-init/{secretproviderclass,job}.yaml (same envsubst treatment) and wait for
+# that Job to complete BEFORE the above - it's deliberately not one of the resources this script
+# renders, since kustomize's single `kubectl apply` has no built-in "run this Job to completion
+# first" ordering. See that Job's comment and .github/workflows/deploy-prod.yml's "Create
+# organization/initialization schemas" step for the exact commands.
+#
 # Requires: kubectl (for `kubectl kustomize`), envsubst (gettext), and `terraform output` to be
 # runnable against infra/terraform/environments/prod's already-applied state.
 
@@ -27,11 +34,8 @@ GCP_PROJECT_NUMBER="$(tf_output project_number)"
 export WORKLOAD_GSA_EMAIL
 WORKLOAD_GSA_EMAIL="$(tf_output workload_service_account_email)"
 
-export ORGANIZATION_DB_HOST
-ORGANIZATION_DB_HOST="$(tf_output organization_db_private_ip)"
-
-export INITIALIZATION_DB_HOST
-INITIALIZATION_DB_HOST="$(tf_output initialization_db_private_ip)"
+export SHARED_DB_HOST
+SHARED_DB_HOST="$(tf_output shared_db_private_ip)"
 
 export AUTH_DB_HOST
 AUTH_DB_HOST="$(tf_output auth_db_private_ip)"

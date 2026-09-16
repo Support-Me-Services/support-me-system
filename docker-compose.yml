@@ -9,55 +9,24 @@
 # property. Project name defaults to the directory name instead, which is
 # already "support-me-system".
 #
-# Database-per-service: each service gets its OWN Postgres container (own volume, own
-# credentials) rather than one shared Postgres instance with per-service logical databases.
-# Two reasons, not just one:
-#  - Blast radius / ops isolation: one service's DB can be restarted, resized, upgraded, or
-#    restored from backup without touching any other service's data.
-#  - Least privilege: each service authenticates as its OWN low-privilege role, scoped to its
-#    OWN database. The previous shared-instance setup had every service (including Keycloak)
-#    connect as the single Postgres *superuser* - meaning a bug or compromise in any one
-#    service could read/write every other service's data. That's fixed here regardless of the
-#    instance-per-service question: even a shared instance should never share a superuser
-#    across services.
+# One shared Postgres instance, one database ("keycloak_db"), 3 schemas + 3 roles - not
+# database-per-service anymore. Consolidated from three separate Postgres containers to cut
+# always-on cost (mirrors the same consolidation in infra/terraform's Cloud SQL setup - see
+# infra/terraform/environments/prod/main.tf). Isolation is now at the schema level instead of the
+# instance level:
+#  - Each service still authenticates as its OWN low-privilege role, and each role's search_path
+#    is pinned to its OWN schema (see infra/postgres/init/01-schemas.sql) - a role can't see or
+#    create objects outside its schema, same as before.
+#  - What's given up: one service's data can no longer be restarted/resized/restored independently
+#    of the others', since they all now live in the same instance/volume. Acceptable tradeoff for
+#    this project's current size - revisit if traffic or compliance needs change.
+# The database keeps the name "keycloak_db" (rather than something more neutral) because that's
+# the database Keycloak already owns in prod - reusing it avoids an ALTER DATABASE RENAME (and the
+# Keycloak restart that would require) purely for cosmetics.
 
 services:
 
-  organization-db:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: organization_db
-      POSTGRES_USER: organization
-      POSTGRES_PASSWORD: organization
-    ports:
-      - "5432:5432"
-    volumes:
-      - organization_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U organization -d organization_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  initialization-db:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: initialization_db
-      POSTGRES_USER: initialization
-      POSTGRES_PASSWORD: initialization
-    ports:
-      - "5433:5432"
-    volumes:
-      - initialization_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U initialization -d initialization_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  auth-db:
+  db:
     image: postgres:17
     restart: unless-stopped
     environment:
@@ -65,9 +34,12 @@ services:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
     ports:
-      - "5434:5432"
+      - "5432:5432"
     volumes:
-      - auth_db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
+      # Only runs on first container startup against an empty data dir (official postgres image
+      # convention) - creates the organization/initialization roles + schemas.
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak_db"]
       interval: 5s
@@ -85,7 +57,7 @@ services:
     command: start-dev
     environment:
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://auth-db:5432/keycloak_db
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak_db
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
       KEYCLOAK_ADMIN: admin
@@ -94,7 +66,7 @@ services:
       # Host 8081 -> container 8080, so it doesn't collide with api-gateway's 8080.
       - "8081:8080"
     depends_on:
-      auth-db:
+      db:
         condition: service_healthy
 
   organization:
@@ -103,12 +75,15 @@ services:
       dockerfile: organization/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://organization-db:5432/organization_db
+      # currentSchema confines this connection to its own schema (see
+      # infra/postgres/init/01-schemas.sql) even though it's the same database/instance Keycloak
+      # and initialization also connect to.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/keycloak_db?currentSchema=organization
       SPRING_DATASOURCE_USERNAME: organization
       SPRING_DATASOURCE_PASSWORD: organization
       GRPC_SERVER_PORT: 9091
     depends_on:
-      organization-db:
+      db:
         condition: service_healthy
     # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
 
@@ -118,12 +93,12 @@ services:
       dockerfile: initialization/Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://initialization-db:5432/initialization_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/keycloak_db?currentSchema=initialization
       SPRING_DATASOURCE_USERNAME: initialization
       SPRING_DATASOURCE_PASSWORD: initialization
       GRPC_SERVER_PORT: 9092
     depends_on:
-      initialization-db:
+      db:
         condition: service_healthy
     # Not exposed to the host - only api-gateway needs to reach it, over the compose network.
 
@@ -157,6 +132,4 @@ services:
       - initialization
 
 volumes:
-  organization_db_data:
-  initialization_db_data:
-  auth_db_data:
+  db_data:

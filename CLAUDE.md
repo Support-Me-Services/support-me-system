@@ -58,8 +58,11 @@ kills every container even though `dockerd` itself is a systemd service.
   `presets`. If `className` silently does nothing on a page, check these three first.
 - **Backend**: `api-gateway` (Spring MVC REST, OAuth2 resource server validating Keycloak JWTs) is
   the only externally-reachable service; it's a gRPC client to `organization` and `initialization`,
-  which are gRPC servers with their own Postgres instance each (never shared credentials/blast
-  radius). `proto-contracts` holds the `.proto` sources (buf-linted) shared by all three.
+  which are gRPC servers. `organization`, `initialization`, and Keycloak share one Postgres
+  instance and database, each confined to its own schema via its own low-privilege role (never a
+  shared superuser) — see `infra/postgres/init/01-schemas.sql` (local) and
+  `infra/k8s/base/db-init/job.yaml` (prod). `proto-contracts` holds the `.proto` sources
+  (buf-linted) shared by all three services.
 - **Authorization split**: api-gateway only checks the one *global* Keycloak realm role
   (`SUPER_ADMIN`, read via the custom `KeycloakRealmRoleConverter` — Spring Security's default
   converter looks at the wrong JWT claim). Every resource-level check (IND owner? ORG admin?) lives

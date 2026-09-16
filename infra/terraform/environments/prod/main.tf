@@ -55,12 +55,12 @@ module "network" {
 module "gke" {
   source = "../../modules/gke"
 
-  project_id         = var.project_id
-  region             = var.region
-  name_prefix        = var.name_prefix
-  network_self_link  = module.network.network_self_link
-  subnet_id          = module.network.subnet_id
-  pods_range_name    = module.network.pods_range_name
+  project_id          = var.project_id
+  region              = var.region
+  name_prefix         = var.name_prefix
+  network_self_link   = module.network.network_self_link
+  subnet_id           = module.network.subnet_id
+  pods_range_name     = module.network.pods_range_name
   services_range_name = module.network.services_range_name
 
   depends_on = [google_project_service.required]
@@ -75,33 +75,44 @@ module "edge" {
   depends_on = [google_project_service.required]
 }
 
-module "organization_db" {
-  source = "../../modules/cloudsql"
+// organization/initialization used to each get their own `modules/cloudsql` instance here (see
+// git history). Consolidated onto the shared `auth_db` instance below as schemas instead, to cut
+// Cloud SQL cost - `auth_db` already holds real prod data (Keycloak's), while organization/
+// initialization didn't yet, so it's the one instance worth keeping and the only one worth
+// migrating data off of zero. `modules/cloudsql_user` only creates the Postgres role + its
+// Secret Manager password (via the Cloud SQL Admin API, which needs no network path to the
+// instance); the schema itself and its GRANTs are created by infra/k8s/base/db-init/job.yaml,
+// which runs inside the VPC where it can actually open a psql connection - see that file's
+// comment for why this can't be done from Terraform directly.
+//
+// MIGRATION NOTE (do this BEFORE the apply that first removes the old organization_db/
+// initialization_db module blocks - already done in this diff, so before applying THIS diff):
+// both instances have deletion_protection = true, so a plain `terraform apply` here will fail
+// trying to destroy them. Disable it first, one instance at a time, e.g.:
+//   gcloud sql instances patch support-me-prod-organization --no-deletion-protection --project=support-me-production
+//   gcloud sql instances patch support-me-prod-initialization --no-deletion-protection --project=support-me-production
+// Safe to do any time - it does not delete anything by itself, it only lifts the safety catch.
+module "organization_db_user" {
+  source = "../../modules/cloudsql_user"
 
   project_id                     = var.project_id
-  region                          = var.region
   name_prefix                    = var.name_prefix
   service_name                   = "organization"
-  database_name                  = "organization_db"
+  instance_name                  = module.auth_db.instance_name
   database_user                  = "organization"
-  network_id                     = module.network.network_id
-  private_vpc_connection         = module.network.private_vpc_connection
   workload_service_account_email = module.gke.workload_service_account_email
 
   depends_on = [google_project_service.required]
 }
 
-module "initialization_db" {
-  source = "../../modules/cloudsql"
+module "initialization_db_user" {
+  source = "../../modules/cloudsql_user"
 
   project_id                     = var.project_id
-  region                          = var.region
   name_prefix                    = var.name_prefix
   service_name                   = "initialization"
-  database_name                  = "initialization_db"
+  instance_name                  = module.auth_db.instance_name
   database_user                  = "initialization"
-  network_id                     = module.network.network_id
-  private_vpc_connection         = module.network.private_vpc_connection
   workload_service_account_email = module.gke.workload_service_account_email
 
   depends_on = [google_project_service.required]
@@ -111,7 +122,7 @@ module "auth_db" {
   source = "../../modules/cloudsql"
 
   project_id                     = var.project_id
-  region                          = var.region
+  region                         = var.region
   name_prefix                    = var.name_prefix
   service_name                   = "auth"
   database_name                  = "keycloak_db"
@@ -119,8 +130,9 @@ module "auth_db" {
   network_id                     = module.network.network_id
   private_vpc_connection         = module.network.private_vpc_connection
   workload_service_account_email = module.gke.workload_service_account_email
-  # Keycloak is the front door for every login - worth the extra cost of a standby replica
-  # from day one, unlike organization/initialization which stay ZONAL until traffic justifies it.
+  # Now the shared instance for all 3 services (see the organization_db_user/
+  # initialization_db_user modules above) - worth a standby replica from day one regardless, since
+  # Keycloak alone was already the front door for every login before the consolidation.
   availability_type = "REGIONAL"
 
   depends_on = [google_project_service.required]
@@ -131,7 +143,7 @@ module "storage" {
 
   project_id                     = var.project_id
   project_number                 = data.google_project.current.number
-  region                          = var.region
+  region                         = var.region
   name_prefix                    = var.name_prefix
   workload_service_account_email = module.gke.workload_service_account_email
 

@@ -24,8 +24,11 @@ spec:
               name: grpc
           env:
             - name: SPRING_DATASOURCE_URL
-              # ${INITIALIZATION_DB_HOST} = initialization_db module's private_ip_address output.
-              value: jdbc:postgresql://${INITIALIZATION_DB_HOST}:5432/initialization_db
+              # ${SHARED_DB_HOST} = auth_db module's private_ip_address output - initialization now
+              # shares that instance/database, confined to its own schema (see
+              # infra/k8s/base/db-init/job.yaml and infra/terraform/environments/prod/main.tf's
+              # consolidation note).
+              value: jdbc:postgresql://${SHARED_DB_HOST}:5432/keycloak_db?currentSchema=initialization
             - name: SPRING_DATASOURCE_USERNAME
               value: initialization
             - name: SPRING_DATASOURCE_PASSWORD

@@ -1,8 +1,10 @@
-// One Cloud SQL (Postgres) instance per service - mirrors docker-compose.yml's
-// database-per-service design (own instance, own volume/disk, own low-privilege role) for the
-// same blast-radius and least-privilege reasons documented there. Instantiate this module once
-// per service (see environments/prod/main.tf) rather than making it create all three itself, so
-// each service's DB can be resized/restored independently without touching the others' state.
+// A full Cloud SQL (Postgres) instance + database + role. As of the single-instance
+// consolidation (see environments/prod/main.tf), only `auth_db` still uses this module directly -
+// organization/initialization are schemas + roles inside that SAME instance/database now (see
+// `modules/cloudsql_user`), not separate instances. Kept as its own module (rather than merged
+// into environments/prod/main.tf) in case a future service genuinely needs instance-level
+// isolation again (e.g. a service with much heavier or bursty load, or stricter compliance
+// requirements than the others).
 
 resource "random_password" "db_password" {
   length  = 32

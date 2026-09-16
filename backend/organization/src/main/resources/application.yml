@@ -5,7 +5,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/organization_db
+    url: jdbc:postgresql://localhost:5432/keycloak_db?currentSchema=organization
     username: organization
     password: organization
   jpa:

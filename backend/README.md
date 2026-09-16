@@ -49,11 +49,12 @@ mvn -pl proto-contracts,organization,initialization,api-gateway -am verify -Dski
 
 ## Local dev environment
 
-See the root-level `docker-compose.yml` (one directory up) for the per-service Postgres
-instances, Keycloak, and the three services wired together for local development. Each service
-gets its own Postgres container, own volume, and own low-privilege role - never a shared
-superuser: `organization-db` (host port 5432), `initialization-db` (host port 5433), and
-`auth-db` for Keycloak (host port 5434).
+See the root-level `docker-compose.yml` (one directory up) for the single shared Postgres
+container (`db`, host port 5432) plus Keycloak and the three services wired together for local
+development. All three services share one instance and one database (`keycloak_db`), each
+confined to its own schema via its own low-privilege role - never a shared superuser. See
+`infra/postgres/init/01-schemas.sql` for how the `organization`/`initialization` roles and
+schemas get created.
 
 ## Pinned versions (verified against Maven Central)
 
@@ -110,8 +111,8 @@ for integration tests regardless: never bind a hardcoded port in a test.
 
 ## Verified end-to-end via Docker Compose
 
-`docker compose up -d --build` — all 7 containers (`organization-db`, `initialization-db`,
-`auth-db`, `auth`, `organization`, `initialization`, `api-gateway`) run successfully, and a full
+`docker compose up -d --build` — all 5 containers (`db`, `auth`, `organization`, `initialization`,
+`api-gateway`) run successfully, and a full
 browser login/logout cycle against
 the `support-me` realm works (see the root `README.md`'s "Local auth setup"). Two real bugs
 surfaced only at this stage (never running the actual executable jars before):

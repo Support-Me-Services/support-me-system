@@ -57,6 +57,14 @@ resource "google_sql_database" "this" {
   project  = var.project_id
   name     = var.database_name
   instance = google_sql_database_instance.this.name
+
+  # depends_on (not a real data dependency) exists purely to control DESTROY order: Terraform
+  # destroys in reverse dependency order, so this makes the database get dropped before the role
+  # is. That matters because DROP DATABASE unconditionally removes every object in it regardless
+  # of ownership, whereas dropping the role first fails outright while it still owns any objects
+  # in that database - confirmed by a real failure destroying organization_db/initialization_db
+  # during the single-instance consolidation (see environments/prod/main.tf).
+  depends_on = [google_sql_user.this]
 }
 
 resource "google_sql_user" "this" {

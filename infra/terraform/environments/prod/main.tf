@@ -75,29 +75,73 @@ module "edge" {
   depends_on = [google_project_service.required]
 }
 
-// organization/initialization used to each get their own `modules/cloudsql` instance here (see
-// git history). Consolidated onto the shared `auth_db` instance below as schemas instead, to cut
-// Cloud SQL cost - `auth_db` already holds real prod data (Keycloak's), while organization/
-// initialization didn't yet, so it's the one instance worth keeping and the only one worth
-// migrating data off of zero. `modules/cloudsql_user` only creates the Postgres role + its
-// Secret Manager password (via the Cloud SQL Admin API, which needs no network path to the
-// instance); the schema itself and its GRANTs are created by infra/k8s/base/db-init/job.yaml,
-// which runs inside the VPC where it can actually open a psql connection - see that file's
-// comment for why this can't be done from Terraform directly.
+// CONSOLIDATION IS TWO PHASES, NOT ONE - learned the hard way (see incident notes for the
+// first, failed attempt at this). A single apply that both (a) creates the new organization/
+// initialization roles on `auth_db` AND (b) destroys the old organization_db/initialization_db
+// modules cannot work: those instances' databases are still being written to by the currently
+// running organization/initialization pods until the NEW pods (pointed at auth_db) are actually
+// rolled out, and Cloud SQL refuses to drop a database "being accessed by other users". Dropping
+// the old `google_sql_user` also fails independently while it still owns objects in that
+// database - the fix for that (see modules/cloudsql/main.tf's depends_on) only kicks in once the
+// database itself is dropped first.
 //
-// MIGRATION NOTE (do this BEFORE the apply that first removes the old organization_db/
-// initialization_db module blocks - already done in this diff, so before applying THIS diff):
-// both instances have deletion_protection = true, so a plain `terraform apply` here will fail
-// trying to destroy them. Disable it first, one instance at a time, e.g.:
-//   gcloud sql instances patch support-me-prod-organization --no-deletion-protection --project=support-me-production
-//   gcloud sql instances patch support-me-prod-initialization --no-deletion-protection --project=support-me-production
-// Safe to do any time - it does not delete anything by itself, it only lifts the safety catch.
+// PHASE 1 (this apply): keep the old organization_db/initialization_db modules exactly as they
+// were - add the new roles alongside them, on the existing `auth_db` instance, via
+// modules/cloudsql_user (role + Secret Manager password only, via the Cloud SQL Admin API, which
+// needs no network path to the instance - the schema itself and its GRANTs are created
+// separately by infra/k8s/base/db-init/job.yaml, which runs inside the VPC where it can actually
+// open a psql connection). Deploying this lets organization/initialization roll out pointed at
+// the shared instance; the old instances go idle once that rollout completes, but are NOT
+// destroyed yet.
+//
+// PHASE 2 (separate, later apply, once the rollout above is confirmed healthy and the old
+// instances have had no connections for a while): remove the `organization_db`/
+// `initialization_db` module blocks below entirely to actually destroy them. Safe by then since
+// nothing is connected. Also re-check deletion_protection is off first (gcloud sql instances
+// patch <name> --no-deletion-protection --project=support-me-production).
+module "organization_db" {
+  source = "../../modules/cloudsql"
+
+  project_id                     = var.project_id
+  region                         = var.region
+  name_prefix                    = var.name_prefix
+  service_name                   = "organization"
+  database_name                  = "organization_db"
+  database_user                  = "organization"
+  network_id                     = module.network.network_id
+  private_vpc_connection         = module.network.private_vpc_connection
+  workload_service_account_email = module.gke.workload_service_account_email
+
+  depends_on = [google_project_service.required]
+}
+
+module "initialization_db" {
+  source = "../../modules/cloudsql"
+
+  project_id                     = var.project_id
+  region                         = var.region
+  name_prefix                    = var.name_prefix
+  service_name                   = "initialization"
+  database_name                  = "initialization_db"
+  database_user                  = "initialization"
+  network_id                     = module.network.network_id
+  private_vpc_connection         = module.network.private_vpc_connection
+  workload_service_account_email = module.gke.workload_service_account_email
+
+  depends_on = [google_project_service.required]
+}
+
+// The NEW roles for the shared instance, alongside the (still alive, for now) modules above.
+// service_name is suffixed "-shared" purely so modules/cloudsql_user's Secret Manager secret_id
+// doesn't collide with organization_db/initialization_db's own secret_id above (both would
+// otherwise compute to the same "support-me-prod-<service>-db-password" string) - confirmed by
+// a real failure (409 "Secret already exists") the first time this was attempted without it.
 module "organization_db_user" {
   source = "../../modules/cloudsql_user"
 
   project_id                     = var.project_id
   name_prefix                    = var.name_prefix
-  service_name                   = "organization"
+  service_name                   = "organization-shared"
   instance_name                  = module.auth_db.instance_name
   database_user                  = "organization"
   workload_service_account_email = module.gke.workload_service_account_email
@@ -110,7 +154,7 @@ module "initialization_db_user" {
 
   project_id                     = var.project_id
   name_prefix                    = var.name_prefix
-  service_name                   = "initialization"
+  service_name                   = "initialization-shared"
   instance_name                  = module.auth_db.instance_name
   database_user                  = "initialization"
   workload_service_account_email = module.gke.workload_service_account_email

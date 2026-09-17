@@ -40,9 +40,21 @@ resource "google_secret_manager_secret_version" "db_password" {
   secret_data = random_password.db_password.result
 }
 
+// Setting IAM policy on a Secret Manager secret immediately after creating it fails with a 403
+// ("Permission ... denied ... or it may not exist") even for a caller that genuinely has the
+// role - confirmed by a real failure, twice, ~5 minutes apart, on a brand-new secret: IAM's own
+// eventual consistency, not a real permission gap. A short deliberate delay avoids the race
+// (the pre-existing modules/cloudsql secrets never hit this because they were created once, a
+// long time before anything tried to read/bind them).
+resource "time_sleep" "wait_for_secret_iam_propagation" {
+  depends_on      = [google_secret_manager_secret.db_password]
+  create_duration = "30s"
+}
+
 resource "google_secret_manager_secret_iam_member" "workload_access" {
-  project   = var.project_id
-  secret_id = google_secret_manager_secret.db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.workload_service_account_email}"
+  project    = var.project_id
+  secret_id  = google_secret_manager_secret.db_password.secret_id
+  role       = "roles/secretmanager.secretAccessor"
+  member     = "serviceAccount:${var.workload_service_account_email}"
+  depends_on = [time_sleep.wait_for_secret_iam_propagation]
 }

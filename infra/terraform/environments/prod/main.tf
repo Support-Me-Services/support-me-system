@@ -75,67 +75,20 @@ module "edge" {
   depends_on = [google_project_service.required]
 }
 
-// CONSOLIDATION IS TWO PHASES, NOT ONE - learned the hard way (see incident notes for the
-// first, failed attempt at this). A single apply that both (a) creates the new organization/
-// initialization roles on `auth_db` AND (b) destroys the old organization_db/initialization_db
-// modules cannot work: those instances' databases are still being written to by the currently
-// running organization/initialization pods until the NEW pods (pointed at auth_db) are actually
-// rolled out, and Cloud SQL refuses to drop a database "being accessed by other users". Dropping
-// the old `google_sql_user` also fails independently while it still owns objects in that
-// database - the fix for that (see modules/cloudsql/main.tf's depends_on) only kicks in once the
-// database itself is dropped first.
+// organization/initialization used to each get their own `modules/cloudsql` instance (see git
+// history - removed here as Phase 2 of the single-instance consolidation, after Phase 1's rollout
+// ran clean and the old instances sat with zero connections). Now schemas + roles on the shared
+// `auth_db` instance instead, via modules/cloudsql_user (role + Secret Manager password only, via
+// the Cloud SQL Admin API, which needs no network path to the instance - the schema itself and
+// its GRANTs are created separately by infra/k8s/base/db-init/job.yaml, which runs inside the VPC
+// where it can actually open a psql connection).
 //
-// PHASE 1 (this apply): keep the old organization_db/initialization_db modules exactly as they
-// were - add the new roles alongside them, on the existing `auth_db` instance, via
-// modules/cloudsql_user (role + Secret Manager password only, via the Cloud SQL Admin API, which
-// needs no network path to the instance - the schema itself and its GRANTs are created
-// separately by infra/k8s/base/db-init/job.yaml, which runs inside the VPC where it can actually
-// open a psql connection). Deploying this lets organization/initialization roll out pointed at
-// the shared instance; the old instances go idle once that rollout completes, but are NOT
-// destroyed yet.
-//
-// PHASE 2 (separate, later apply, once the rollout above is confirmed healthy and the old
-// instances have had no connections for a while): remove the `organization_db`/
-// `initialization_db` module blocks below entirely to actually destroy them. Safe by then since
-// nothing is connected. Also re-check deletion_protection is off first (gcloud sql instances
-// patch <name> --no-deletion-protection --project=support-me-production).
-module "organization_db" {
-  source = "../../modules/cloudsql"
-
-  project_id                     = var.project_id
-  region                         = var.region
-  name_prefix                    = var.name_prefix
-  service_name                   = "organization"
-  database_name                  = "organization_db"
-  database_user                  = "organization"
-  network_id                     = module.network.network_id
-  private_vpc_connection         = module.network.private_vpc_connection
-  workload_service_account_email = module.gke.workload_service_account_email
-
-  depends_on = [google_project_service.required]
-}
-
-module "initialization_db" {
-  source = "../../modules/cloudsql"
-
-  project_id                     = var.project_id
-  region                         = var.region
-  name_prefix                    = var.name_prefix
-  service_name                   = "initialization"
-  database_name                  = "initialization_db"
-  database_user                  = "initialization"
-  network_id                     = module.network.network_id
-  private_vpc_connection         = module.network.private_vpc_connection
-  workload_service_account_email = module.gke.workload_service_account_email
-
-  depends_on = [google_project_service.required]
-}
-
-// The NEW roles for the shared instance, alongside the (still alive, for now) modules above.
 // service_name is suffixed "-shared" purely so modules/cloudsql_user's Secret Manager secret_id
-// doesn't collide with organization_db/initialization_db's own secret_id above (both would
-// otherwise compute to the same "support-me-prod-<service>-db-password" string) - confirmed by
-// a real failure (409 "Secret already exists") the first time this was attempted without it.
+// didn't collide with the old organization_db/initialization_db modules' own secret_id while both
+// existed side by side during the migration (both would otherwise have computed to the same
+// "support-me-prod-<service>-db-password" string) - confirmed by a real failure (409 "Secret
+// already exists"). Left as "-shared" post-migration too rather than renaming back, since that'd
+// mean another secret rotation for no real benefit.
 module "organization_db_user" {
   source = "../../modules/cloudsql_user"
 

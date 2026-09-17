@@ -26,8 +26,18 @@ metadata:
   namespace: support-me
 data:
   init.sql: |
+    -- "keycloak" is cloudsqlsuperuser (Cloud SQL's substitute for a real Postgres superuser),
+    -- which - unlike an actual superuser - still can't CREATE SCHEMA ... AUTHORIZATION <role> for
+    -- a role it isn't a member of (confirmed by a real failure: "must be able to SET ROLE
+    -- organization"). Grant membership just long enough to create the schema, then drop it again
+    -- - keycloak already has cloudsqlsuperuser regardless, so this isn't a meaningful privilege
+    -- change, just tidiness.
+    GRANT organization TO keycloak;
+    GRANT initialization TO keycloak;
     CREATE SCHEMA IF NOT EXISTS organization AUTHORIZATION organization;
     CREATE SCHEMA IF NOT EXISTS initialization AUTHORIZATION initialization;
+    REVOKE organization FROM keycloak;
+    REVOKE initialization FROM keycloak;
     ALTER ROLE organization SET search_path = organization;
     ALTER ROLE initialization SET search_path = initialization;
     REVOKE CREATE ON SCHEMA public FROM organization, initialization;

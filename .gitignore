@@ -53,6 +53,9 @@ Thumbs.db
 **/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+# Saved plan files (terraform plan -out=...) can embed secret values in plaintext - never commit.
+*.tfplan
+tfplan*
 *.tfvars
 !*.tfvars.example
 crash.log

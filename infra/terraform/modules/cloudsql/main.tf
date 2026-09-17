@@ -92,9 +92,18 @@ resource "google_secret_manager_secret_version" "db_password" {
   secret_data = random_password.db_password.result
 }
 
+// See modules/cloudsql_user/main.tf's identical time_sleep for why this delay exists - setting
+// IAM policy immediately after creating the secret races Secret Manager's own IAM propagation
+// (confirmed by a real failure creating modules/cloudsql_user's secrets, twice, ~5 minutes apart).
+resource "time_sleep" "wait_for_secret_iam_propagation" {
+  depends_on      = [google_secret_manager_secret.db_password]
+  create_duration = "30s"
+}
+
 resource "google_secret_manager_secret_iam_member" "workload_access" {
-  project   = var.project_id
-  secret_id = google_secret_manager_secret.db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${var.workload_service_account_email}"
+  project    = var.project_id
+  secret_id  = google_secret_manager_secret.db_password.secret_id
+  role       = "roles/secretmanager.secretAccessor"
+  member     = "serviceAccount:${var.workload_service_account_email}"
+  depends_on = [time_sleep.wait_for_secret_iam_propagation]
 }

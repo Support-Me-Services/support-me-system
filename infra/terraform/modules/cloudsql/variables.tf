@@ -54,3 +54,16 @@ variable "disk_size_gb" {
   type    = number
   default = 20
 }
+
+variable "deletion_protection" {
+  description = <<-EOT
+    Terraform-provider-side guard on this instance's destroy - separate from, and NOT satisfied
+    by, GCP's own instance-level `settings.deletionProtectionEnabled` API flag (what `gcloud sql
+    instances patch --no-deletion-protection` toggles). Confirmed by a real failure: patching the
+    GCP-side flag did nothing to stop Terraform itself refusing to destroy an instance whose
+    config still says `deletion_protection = true`. Must be flipped to false HERE (a plain config
+    change, applied in its own step) before a later apply can actually remove the instance.
+  EOT
+  type        = bool
+  default     = true
+}

@@ -16,7 +16,7 @@ resource "google_sql_database_instance" "this" {
   name                = "${var.name_prefix}-${var.service_name}"
   region              = var.region
   database_version    = "POSTGRES_17"
-  deletion_protection = true
+  deletion_protection = var.deletion_protection
 
   settings {
     # Explicit "ENTERPRISE" edition (as opposed to the newer, pricier "ENTERPRISE_PLUS", which

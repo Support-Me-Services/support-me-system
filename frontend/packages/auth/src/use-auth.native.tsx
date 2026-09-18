@@ -303,6 +303,13 @@ export async function refreshAccessToken(): Promise<string | null> {
     return tokenResult.accessToken;
   } catch (error) {
     console.error(`${LOG_PREFIX} refreshAccessToken() failed`, error);
+    // Refresh token itself is dead (e.g. expired while the app sat in the
+    // background) - this won't succeed on a later retry either. Drop it now
+    // so isAuthenticated reflects reality instead of leaving a stale
+    // accessToken in SecureStore that every subsequent request keeps
+    // retrying against.
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.accessToken);
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.refreshToken);
     return null;
   }
 }

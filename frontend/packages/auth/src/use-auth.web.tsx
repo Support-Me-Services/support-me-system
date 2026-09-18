@@ -55,6 +55,7 @@ const AdapterContext = createContext<AuthContextValue | null>(null);
 // lifetime of the app.
 let latestAccessToken: string | null = null;
 let latestSigninSilent: (() => Promise<unknown>) | null = null;
+let latestRemoveUser: (() => Promise<void>) | null = null;
 
 export async function getAccessToken(): Promise<string | null> {
   return latestAccessToken;
@@ -69,6 +70,14 @@ export async function refreshAccessToken(): Promise<string | null> {
     latestAccessToken = token;
     return token;
   } catch {
+    // Refresh token is gone too (e.g. its own lifetime elapsed while the tab
+    // sat idle) - this failure is permanent, not transient. Drop the stale
+    // user/tokens now instead of leaving a "zombie" session around: without
+    // this, isAuthenticated stays true on the old (already-expired) access
+    // token, so every subsequent request/refetch 401s and retries this same
+    // doomed refresh again, forever, for as long as the tab stays open.
+    latestAccessToken = null;
+    void latestRemoveUser?.();
     return null;
   }
 }
@@ -83,8 +92,16 @@ const oidcProviderSettings: AuthProviderProps = {
   // this is a single-page app with no dedicated logout-landing route.
   post_logout_redirect_uri: oidcConfig.redirectUri,
   scope: oidcConfig.scope,
-  // TODO: tune once Keycloak client is finalized (silent renew, post-logout
-  // redirect, response_mode, etc.)
+  // The axios response interceptor (packages/api-client) already refreshes
+  // reactively on a 401. Leaving oidc-client-ts's own timer-driven renewal on
+  // (the default) means two uncoordinated refresh mechanisms can race each
+  // other, and - once the refresh token itself has expired - both independently
+  // keep retrying the same doomed refresh with no terminal state, which is
+  // what produced the request storm after a long-idle tab. One reactive path
+  // is enough.
+  automaticSilentRenew: false,
+  // TODO: tune once Keycloak client is finalized (post-logout redirect,
+  // response_mode, etc.)
   onSigninCallback: () => {
     // Strip OIDC params from the URL after a successful login redirect.
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -96,6 +113,7 @@ function AdapterBridge({ children }: { children: React.ReactNode }) {
 
   latestAccessToken = oidc.user?.access_token ?? null;
   latestSigninSilent = () => oidc.signinSilent();
+  latestRemoveUser = () => oidc.removeUser();
 
   const value = useMemo<AuthContextValue>(
     () => ({

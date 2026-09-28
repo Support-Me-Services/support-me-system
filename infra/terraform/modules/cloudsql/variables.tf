@@ -50,6 +50,12 @@ variable "availability_type" {
   default     = "ZONAL"
 }
 
+variable "activation_policy" {
+  description = "ALWAYS (running) or NEVER (stopped - no compute billed, disk/backups and all data kept)."
+  type        = string
+  default     = "ALWAYS"
+}
+
 variable "disk_size_gb" {
   type    = number
   default = 20

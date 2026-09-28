@@ -62,6 +62,8 @@ module "gke" {
   subnet_id           = module.network.subnet_id
   pods_range_name     = module.network.pods_range_name
   services_range_name = module.network.services_range_name
+  enabled             = !var.hibernate
+  deletion_protection = var.gke_deletion_protection
 
   depends_on = [google_project_service.required]
 }
@@ -130,7 +132,9 @@ module "auth_db" {
   # Now the shared instance for all 3 services (see the organization_db_user/
   # initialization_db_user modules above) - worth a standby replica from day one regardless, since
   # Keycloak alone was already the front door for every login before the consolidation.
-  availability_type = "REGIONAL"
+  # Hibernation stops the instance and drops the standby (a stopped standby would still bill disk).
+  availability_type = var.hibernate ? "ZONAL" : "REGIONAL"
+  activation_policy = var.hibernate ? "NEVER" : "ALWAYS"
 
   depends_on = [google_project_service.required]
 }

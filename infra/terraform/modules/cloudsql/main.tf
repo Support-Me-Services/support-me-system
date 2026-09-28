@@ -24,6 +24,7 @@ resource "google_sql_database_instance" "this" {
     # tiers) - required for the classic db-custom-N-M tier below to be valid at all.
     edition           = "ENTERPRISE"
     tier              = var.tier
+    activation_policy = var.activation_policy
     availability_type = var.availability_type
     disk_autoresize   = true
     disk_size         = var.disk_size_gb

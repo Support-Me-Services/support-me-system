@@ -3,6 +3,8 @@
 // per-node tuning, and it bills per-pod-resource rather than per-node.
 
 resource "google_container_cluster" "prod" {
+  count = var.enabled ? 1 : 0
+
   name     = "${var.name_prefix}-cluster"
   project  = var.project_id
   location = var.region # regional (not zonal) cluster for control-plane HA.
@@ -37,13 +39,18 @@ resource "google_container_cluster" "prod" {
     channel = "REGULAR"
   }
 
-  deletion_protection = true
+  deletion_protection = var.deletion_protection
 
   maintenance_policy {
     daily_maintenance_window {
       start_time = "02:00" # off-peak for the target userbase (Europe/Warsaw).
     }
   }
+}
+
+moved {
+  from = google_container_cluster.prod
+  to   = google_container_cluster.prod[0]
 }
 
 // Workload Identity binding: lets Kubernetes ServiceAccounts impersonate this GCP service
@@ -60,8 +67,8 @@ resource "google_service_account_iam_member" "workload_identity_binding" {
   for_each = toset(var.k8s_service_accounts)
 
   service_account_id = google_service_account.workload.name
-  role                = "roles/iam.workloadIdentityUser"
-  member              = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/${each.value}]"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/${each.value}]"
 
   # The `[PROJECT_ID].svc.id.goog` identity pool this member string references is created by the
   # cluster's workload_identity_config, not by this resource itself and not implied by the
